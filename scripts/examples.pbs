@@ -1,0 +1,19 @@
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=2:00:00
+#PBS -l mem=3GB
+#PBS -N examples
+#PBS -o data/logs
+#PBS -e data/logs
+
+cd ${HOME}/unwise
+python -u unwise-coadd.py --outdir data/unwise --dataset examples --maxmem 3 --force
+
+# 
+# cp 0000m576-atlas.fits examples-atlas.fits
+# cp 0000m576-frames.fits examples-frames.fits
+# 
+# for name in 0066p636 0305p075 0318p045 0347m031 0408m546 0423m016 0429m364 0512m197 0587p121 0720m606 0753p696 0774p212 0832p196 0943m652 1002m667 1034m485 1344p196 1348p181 1677m652 2028m076 2751m167 3043m303; do
+#   tabmerge ${name}-atlas.fits+1 examples-atlas.fits+1
+#   tabmerge ${name}-frames.fits+1 examples-frames.fits+1
+# done
+# 

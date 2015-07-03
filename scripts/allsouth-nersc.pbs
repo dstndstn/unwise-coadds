@@ -1,0 +1,19 @@
+#PBS -l nodes=1:ppn=1
+#PBS -A bigboss
+
+###PBS -q serial
+###PBS -l pvmem=4GB
+###PBS -l pvmem=18GB
+###PBS -l pvmem=44GB
+
+#PBS -q reg_xlmem
+#PBS -l pvmem=64GB
+
+#PBS -l walltime=12:00:00
+#PBS -N wise-s
+#PBS -o data/logs
+#PBS -e data/logs
+
+cd ${HOME}/unwise
+python -u unwise-coadd.py --outdir data/unwise-3 --dataset allsouth --maxmem 64 --force
+

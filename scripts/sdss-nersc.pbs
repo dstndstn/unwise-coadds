@@ -1,0 +1,22 @@
+#PBS -l nodes=1:ppn=1
+
+### default memory ~3.5 GB
+##PBS -q serial
+
+### NERSC recommends requesting more like:
+##PBS -l pvmem=10GB
+##PBS -l pvmem=20GB
+##PBS -l pvmem=44GB
+
+#PBS -q reg_xlmem
+#PBS -l pvmem=50GB
+
+#PBS -l walltime=24:00:00
+#PBS -N sdsswise
+#PBS -o data/logs-sdss
+#PBS -e data/logs-sdss
+
+cd ${HOME}/unwise
+#python -u unwise-coadd.py --outdir data/unwise-sdss --dataset sdss --force
+python -u unwise-coadd.py --outdir data/unwise-sdss-2 --dataset sdss --force
+

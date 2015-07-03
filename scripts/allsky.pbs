@@ -1,0 +1,11 @@
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=24:00:00
+#PBS -N wise
+#PBS -o data/logs-unwise-3
+#PBS -e data/logs-unwise-3
+#PBS -l mem=7GB
+
+cd ${HOME}/unwise
+python -u unwise-coadd.py --outdir data/unwise-3 --dataset allsky --maxmem 7
+
+

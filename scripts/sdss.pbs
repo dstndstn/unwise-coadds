@@ -1,0 +1,11 @@
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=6:00:00
+#PBS -N sdsswise
+#PBS -p -10
+#PBS -q data_io
+#PBS -o data/logs
+#PBS -e data/logs
+
+cd ${HOME}/unwise
+python -u unwise-coadd.py --outdir data/unwise --dataset sdss
+
