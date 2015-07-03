@@ -14,7 +14,7 @@ cd ${HOME}/unwise
 while [ $# -gt 0 ]; do
   n="$1"
   echo "Running $n"
-  python -u unwise-coadd.py --outdir data/unwise-4 --dataset allsky --maxmem 7 $n > data/logs-unwise-4/$n.log 2> data/logs-unwise-4/$n.err
+  python -u unwise_coadd.py --outdir data/unwise-4 --dataset allsky --maxmem 7 $n > data/logs-unwise-4/$n.log 2> data/logs-unwise-4/$n.err
   shift
 done
 

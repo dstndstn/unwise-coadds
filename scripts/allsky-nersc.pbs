@@ -20,6 +20,6 @@
 #PBS -e data/logs
 
 cd ${HOME}/unwise
-python -u unwise-coadd.py --outdir data/unwise-4 --dataset allsky --maxmem 110
+python -u unwise_coadd.py --outdir data/unwise-4 --dataset allsky --maxmem 110
 
 

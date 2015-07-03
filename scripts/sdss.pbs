@@ -7,5 +7,5 @@
 #PBS -e data/logs
 
 cd ${HOME}/unwise
-python -u unwise-coadd.py --outdir data/unwise --dataset sdss
+python -u unwise_coadd.py --outdir data/unwise --dataset sdss
 

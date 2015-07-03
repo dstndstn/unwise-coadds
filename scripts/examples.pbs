@@ -6,7 +6,7 @@
 #PBS -e data/logs
 
 cd ${HOME}/unwise
-python -u unwise-coadd.py --outdir data/unwise --dataset examples --maxmem 3 --force
+python -u unwise_coadd.py --outdir data/unwise --dataset examples --maxmem 3 --force
 
 # 
 # cp 0000m576-atlas.fits examples-atlas.fits

@@ -2686,7 +2686,7 @@ def main():
         parser.print_help()
         sys.exit(-1)
 
-    print 'unwise-coadd.py starting: args:', sys.argv
+    print 'unwise_coadd.py starting: args:', sys.argv
     print 'PBS_ARRAYID:', arr
 
     print 'opt:', opt
@@ -2968,12 +2968,12 @@ if __name__ == '__main__':
     sys.exit(main())
 
 
-# python -u unwise-coadd.py --ra 10.68 --dec 41.27 --force 1000 --plots > m31.log
-# python -u unwise-coadd.py --ra 80.63 --dec 33.43 1000 > tad-1.log 2>&1 &
-# python -u unwise-coadd.py --ra 83.8 --dec -5.39 1000 > orion-1.log 2>&1 &
-# M1 (Crab Nebula): python -u unwise-coadd.py --ra 83.6 --dec 22.0 -o data/unwise 1000
-# M8 (Lagoon Nebula): python -u unwise-coadd.py --ra 270.9 --dec -24.4 -o data/unwise 1000 > 1b.log 2>&1 &
-# M16 (Eagle nebula): python -u unwise-coadd.py --ra 274.7 --dec -13.8 -o data/unwise 1000 > 1c.log 2>&1 &
+# python -u unwise_coadd.py --ra 10.68 --dec 41.27 --force 1000 --plots > m31.log
+# python -u unwise_coadd.py --ra 80.63 --dec 33.43 1000 > tad-1.log 2>&1 &
+# python -u unwise_coadd.py --ra 83.8 --dec -5.39 1000 > orion-1.log 2>&1 &
+# M1 (Crab Nebula): python -u unwise_coadd.py --ra 83.6 --dec 22.0 -o data/unwise 1000
+# M8 (Lagoon Nebula): python -u unwise_coadd.py --ra 270.9 --dec -24.4 -o data/unwise 1000 > 1b.log 2>&1 &
+# M16 (Eagle nebula): python -u unwise_coadd.py --ra 274.7 --dec -13.8 -o data/unwise 1000 > 1c.log 2>&1 &
 # M17 (Omega nebula)
 # M20 (Trifid nebula)
 # M27 (Dumbbell nebula)

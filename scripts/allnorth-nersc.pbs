@@ -16,6 +16,6 @@
 #PBS -e data/logs
 
 cd ${HOME}/unwise
-python -u unwise-coadd.py --outdir data/unwise-4 --dataset allnorth --maxmem 72 --force
+python -u unwise_coadd.py --outdir data/unwise-4 --dataset allnorth --maxmem 72 --force
 
 

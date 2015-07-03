@@ -17,6 +17,6 @@
 #PBS -e data/logs-sdss
 
 cd ${HOME}/unwise
-#python -u unwise-coadd.py --outdir data/unwise-sdss --dataset sdss --force
-python -u unwise-coadd.py --outdir data/unwise-sdss-2 --dataset sdss --force
+#python -u unwise_coadd.py --outdir data/unwise-sdss --dataset sdss --force
+python -u unwise_coadd.py --outdir data/unwise-sdss-2 --dataset sdss --force
 

@@ -6,6 +6,6 @@
 #PBS -l mem=7GB
 
 cd ${HOME}/unwise
-python -u unwise-coadd.py --outdir data/unwise-3 --dataset allsky --maxmem 7
+python -u unwise_coadd.py --outdir data/unwise-3 --dataset allsky --maxmem 7
 
 
