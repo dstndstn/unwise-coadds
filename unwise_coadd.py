@@ -377,8 +377,12 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     wisepixscale = 2.75
 
     if version is None:
-        version = get_svn_version()
-    print 'SVN version info:', version
+        from astrometry.util.run_command import run_command
+        rtn,version,err = run_command('git describe')
+        if rtn:
+            raise RuntimeError('Failed to get version string (git describe):' + ver + err)
+        version = version.strip()
+    print '"git describe" version info:', version
 
     if not force_outdir:
         outdir = get_dir_for_coadd(outdir, ti.coadd_id)
@@ -2647,6 +2651,8 @@ def main():
                       help='Build coadd at given RA center')
     parser.add_option('--dec', dest='dec', type=float, default=None,
                       help='Build coadd at given Dec center')
+    parser.add_option('--band', type=int, default=None, action='append',
+                      help='with --ra,--dec: band(s) to do (1,2,3,4)')
 
     parser.add_option('--tile', dest='tile', type=str, default=None,
                       help='Run a single tile, eg, 0832p196')
@@ -2860,13 +2866,19 @@ def main():
         else:
             assert(False)
 
+    tiles = []
+    
+
     if radec:
         T = fits_table()
         T.coadd_id = np.array([dataset])
         T.ra = np.array([opt.ra])
         T.dec = np.array([opt.dec])
         if len(args) == 0:
-            arr = arrayblock
+            if len(opt.band):
+                tiles.extend([b * arrayblock for b in opt.band])
+            else:
+                tiles.append(arrayblock)
     else:
         fn = '%s-atlas.fits' % dataset
         if os.path.exists(fn):
@@ -2875,6 +2887,10 @@ def main():
         else:
             T = get_atlas_tiles(r0,r1,d0,d1, W,H, opt.pixscale)
             T.writeto(fn)
+
+        if not len(args):
+            tiles.append(arr)
+
 
     if opt.plotprefix is None:
         opt.plotprefix = dataset
@@ -2918,11 +2934,6 @@ def main():
     if opt.preprocess:
         print 'Preprocessing done'
         sys.exit(0)
-
-    tiles = []
-    
-    if not len(args):
-        tiles.append(arr)
 
     for a in args:
         # parse "qsub -t" format: n,n1-n2,n3
