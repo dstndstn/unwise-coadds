@@ -728,9 +728,10 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                         comment='Magnitude zeropoint (in Vega mag)'))
     hdr.add_record(dict(name='UNW_SKY', value=cosky,
                         comment='Background value subtracted from coadd img'))
-    hdr.add_record(dict(name='UNW_VER', value=version['Revision'],
-                        comment='unWISE code SVN revision'))
-    hdr.add_record(dict(name='UNW_URL', value=version['URL'], comment='SVN URL'))
+    hdr.add_record(dict(name='UNW_VER', value=version,
+                        comment='unWISE code git revision'))
+    hdr.add_record(dict(name='UNW_URL', value='https://github.com/dstndstn/unwise-coadds',
+                        comment='git URL'))
     hdr.add_record(dict(name='UNW_DVER', value=1,
                         comment='unWISE data model version'))
     hdr.add_record(dict(name='UNW_DATE', value=datetime.datetime.now().isoformat(),
