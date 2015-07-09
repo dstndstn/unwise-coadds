@@ -557,6 +557,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         print nu, 'of', NU
         print 'scan', wise.scan_id, 'frame', wise.frame_num, 'band', band
 
+        failedfiles = []
         found = False
         for wdir in wisedirs + [None]:
             download = False
@@ -573,7 +574,12 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                 cmd = (('(wget -r -N -nH -np -nv --cut-dirs=4 -A "*w%i*" ' +
                         '"http://irsa.ipac.caltech.edu/ibe/data/wise/merge/merge_p1bm_frm/%s/")') %
                         (band, os.path.dirname(intfnx)))
+                print
+                print 'Trying to download file:'
+                print cmd
+                print
                 os.system(cmd)
+                print
 
             if os.path.exists(intfn):
                 try:
