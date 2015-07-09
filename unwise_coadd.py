@@ -2882,12 +2882,14 @@ def main():
                 tiles.append(arrayblock)
     else:
         fn = '%s-atlas.fits' % dataset
+        print 'Looking for file', fn
         if os.path.exists(fn):
             print 'Reading', fn
             T = fits_table(fn)
         else:
             T = get_atlas_tiles(r0,r1,d0,d1, W,H, opt.pixscale)
             T.writeto(fn)
+            print 'Wrote', fn
 
         if not len(args):
             tiles.append(arr)
