@@ -544,7 +544,6 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     WISE.intfn  = np.zeros(len(WISE), object)
     WISE.wcs    = np.zeros(len(WISE), object)
 
-    failedfiles = []
     # count total number of coadd-space pixels -- this determines memory use
     pixinrange = 0.
 
@@ -559,10 +558,23 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         print 'scan', wise.scan_id, 'frame', wise.frame_num, 'band', band
 
         found = False
-        for wdir in wisedirs:
+        for wdir in wisedirs + [None]:
+            download = False
+            if wdir is None:
+                download = True
+                wdir = 'merge_p1bm_frm'
+
             intfn = get_l1b_file(wdir, wise.scan_id, wise.frame_num, band)
             print 'intfn', intfn
-            intfnx = intfn.replace(wdir+'/','')
+            intfnx = intfn.replace(wdir+'/', '')
+
+            if download:
+                # Try to download the file from IRSA.
+                cmd = (('(wget -r -N -nH -np -nv --cut-dirs=4 -A "*w%i*" ' +
+                        '"http://irsa.ipac.caltech.edu/ibe/data/wise/merge/merge_p1bm_frm/%s/")') %
+                        (band, os.path.dirname(intfnx)))
+                os.system(cmd)
+
             if os.path.exists(intfn):
                 try:
                     wcs = Sip(intfn)
@@ -579,9 +591,9 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                 break
             else:
                 print 'missing unc or msk file'
-                break
+                continue
         if not found:
-            print 'Not found'
+            print 'WARNING: Not found: scan', wise.scan_id, 'frame', wise.frame_num, 'band', band
             failedfiles.append(intfnx)
             continue
 
@@ -668,11 +680,6 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         for f in failedfiles:
             print '  ', f
         print
-        for f in failedfiles:
-            cmd = ('(wget -r -N -nH -np -nv --cut-dirs=4 -A "*w%i*" "http://irsa.ipac.caltech.edu/ibe/data/wise/merge/merge_p1bm_frm/%s/")' %
-                   (band, os.path.dirname(f).replace(wisedir + '/', '')))
-            os.system(cmd)
-        #return -1
 
     # Now we can make a more informed estimate of memory use.
     if maxmem:
@@ -2882,12 +2889,14 @@ def main():
                 tiles.append(arrayblock)
     else:
         fn = '%s-atlas.fits' % dataset
+        print 'Looking for file', fn
         if os.path.exists(fn):
             print 'Reading', fn
             T = fits_table(fn)
         else:
             T = get_atlas_tiles(r0,r1,d0,d1, W,H, opt.pixscale)
             T.writeto(fn)
+            print 'Wrote', fn
 
         if not len(args):
             tiles.append(arr)
