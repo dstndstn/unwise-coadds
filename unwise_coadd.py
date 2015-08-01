@@ -45,7 +45,7 @@ median_f = flat_median_f
 
 # GLOBALS:
 # Location of WISE Level 1b inputs
-wisedir = 'wise-frames'
+wisedir = '~/unwise-coadds/wise-frames'
 
 wisedirs = [wisedir, 'neowiser-frames', 'merge_p1bm_frm']
 
@@ -219,7 +219,8 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
     Returns WISE frames touching the given RA,Dec box plus margin.
     '''
     # Read WISE frame metadata
-    WISE = fits_table(os.path.join(wisedir, 'WISE-index-L1b.fits'))
+    WISE = fits_table(os.path.join('~ameisner/unwise-coadds/etc',
+                                   'WISE-index-L1b.fits'))
     print 'Read', len(WISE), 'WISE L1b frames'
     WISE.row = np.arange(len(WISE))
 
@@ -2078,7 +2079,10 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     mask = fullmask[slc]
     unc  = fullunc [slc]
 
-    zp = ihdr['MAGZP']
+    if band == 1 : zp = 20.752 # HACK !!
+    if band == 2 : zp = 19.596 # HACK !!
+
+    # zp = ihdr['MAGZP'] # HACK !!
     zpscale = 1. / zeropointToScale(zp)
     print 'Zeropoint:', zp, '-> scale', zpscale
 
@@ -2968,7 +2972,7 @@ def main():
                 tiles.append(int(term))
 
     for tileid in tiles:
-        band   = tileid / arrayblock
+        band   = (opt.band)[0]
         tileid = tileid % arrayblock
         assert(tileid < len(T))
         print 'Doing coadd tile', T.coadd_id[tileid], 'band', band
