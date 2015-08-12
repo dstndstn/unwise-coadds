@@ -45,9 +45,9 @@ median_f = flat_median_f
 
 # GLOBALS:
 # Location of WISE Level 1b inputs
-wisedir = '~/unwise-coadds/wise-frames'
+wisedir = '/scratch1/scratchdirs/ameisner/code/unwise-coadds/wise-frames'
 
-wisedirs = [wisedir, 'neowiser-frames', 'merge_p1bm_frm']
+wisedirs = [wisedir, '/scratch1/scratchdirs/ameisner/code/unwise-coadds/neowiser-frames', 'merge_p1bm_frm']
 
 mask_gz = True
 unc_gz = True
@@ -219,8 +219,7 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
     Returns WISE frames touching the given RA,Dec box plus margin.
     '''
     # Read WISE frame metadata
-    WISE = fits_table(os.path.join('~ameisner/unwise-coadds/etc',
-                                   'WISE-index-L1b.fits'))
+    WISE = fits_table(os.path.join(wisedir, 'WISE-index-L1b.fits'))
     print 'Read', len(WISE), 'WISE L1b frames'
     WISE.row = np.arange(len(WISE))
 
@@ -470,7 +469,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         WISE.use *= ok
         print 'Cut out bad scans in W4:', sum(WISE.use), 'remaining'
 
-    if band in [3,4]:
+    if True:
         # Cut on moon, based on (robust) measure of standard deviation
         if sum(WISE.moon_masked[WISE.use]):
             moon = WISE.moon_masked[WISE.use]
@@ -2079,10 +2078,7 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     mask = fullmask[slc]
     unc  = fullunc [slc]
 
-    if band == 1 : zp = 20.752 # HACK !!
-    if band == 2 : zp = 19.596 # HACK !!
-
-    # zp = ihdr['MAGZP'] # HACK !!
+    zp = ihdr['MAGZP']
     zpscale = 1. / zeropointToScale(zp)
     print 'Zeropoint:', zp, '-> scale', zpscale
 
