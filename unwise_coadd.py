@@ -469,31 +469,31 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         WISE.use *= ok
         print 'Cut out bad scans in W4:', sum(WISE.use), 'remaining'
 
-    if True:
-        # Cut on moon, based on (robust) measure of standard deviation
-        if sum(WISE.moon_masked[WISE.use]):
-            moon = WISE.moon_masked[WISE.use]
-            nomoon = np.logical_not(moon)
-            Imoon = np.flatnonzero(WISE.use)[moon]
-            assert(sum(moon) == len(Imoon))
-            print sum(nomoon), 'of', sum(WISE.use), 'frames are not moon_masked'
-            nomoonstdevs = WISE.intmed16p[WISE.use][nomoon]
-            med = np.median(nomoonstdevs)
-            mad = 1.4826 * np.median(np.abs(nomoonstdevs - med))
-            print 'Median', med, 'MAD', mad
-            moonstdevs = WISE.intmed16p[WISE.use][moon]
-            okmoon = (moonstdevs - med)/mad < 5.
-            print sum(np.logical_not(okmoon)), 'of', len(okmoon), 'moon-masked frames have large pixel variance'
-            WISE.use[Imoon] *= okmoon
-            print 'Cut to', sum(WISE.use), 'on moon'
-            del Imoon
-            del moon
-            del nomoon
-            del nomoonstdevs
-            del med
-            del mad
-            del moonstdevs
-            del okmoon
+    # this will need to be adapted/modified for the time-resolved coadds...
+    # Cut on moon, based on (robust) measure of standard deviation
+    if sum(WISE.moon_masked[WISE.use]):
+        moon = WISE.moon_masked[WISE.use]
+        nomoon = np.logical_not(moon)
+        Imoon = np.flatnonzero(WISE.use)[moon]
+        assert(sum(moon) == len(Imoon))
+        print sum(nomoon), 'of', sum(WISE.use), 'frames are not moon_masked'
+        nomoonstdevs = WISE.intmed16p[WISE.use][nomoon]
+        med = np.median(nomoonstdevs)
+        mad = 1.4826 * np.median(np.abs(nomoonstdevs - med))
+        print 'Median', med, 'MAD', mad
+        moonstdevs = WISE.intmed16p[WISE.use][moon]
+        okmoon = (moonstdevs - med)/mad < 5.
+        print sum(np.logical_not(okmoon)), 'of', len(okmoon), 'moon-masked frames have large pixel variance'
+        WISE.use[Imoon] *= okmoon
+        print 'Cut to', sum(WISE.use), 'on moon'
+        del Imoon
+        del moon
+        del nomoon
+        del nomoonstdevs
+        del med
+        del mad
+        del moonstdevs
+        del okmoon
 
     print 'Frames:'
     for i,w in enumerate(WISE):
