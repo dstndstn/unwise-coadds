@@ -246,7 +246,10 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
     WISE.phase = np.zeros(len(WISE), np.uint8)
     
     for nbands,name in [(4,'4band'), (3,'3band'), (2,'2band'), (2,'neowiser')]:
-        fn = os.path.join(wisedir, 'WISE-l1b-metadata-%s.fits' % name)
+        metadir = os.environ.get('UNWISE_META_DIR')
+        if metadir is None:
+            metadir = wisedir
+        fn = os.path.join(metadir, 'WISE-l1b-metadata-%s.fits' % name)
         print 'Reading', fn
         bb = [1,2,3,4][:nbands]
         cols = (['ra', 'dec', 'scan_id', 'frame_num',
