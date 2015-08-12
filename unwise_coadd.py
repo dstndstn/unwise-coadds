@@ -45,9 +45,13 @@ median_f = flat_median_f
 
 # GLOBALS:
 # Location of WISE Level 1b inputs
-wisedir = '/scratch1/scratchdirs/ameisner/code/unwise-coadds/wise-frames'
+unwise_symlink_dir = os.environ.get('UNWISE_SYMLINK_DIR')
+if unwise_symlink_dir is None:
+    unwise_symlink_dir = '/scratch1/scratchdirs/ameisner/code/unwise-coadds'
 
-wisedirs = [wisedir, '/scratch1/scratchdirs/ameisner/code/unwise-coadds/neowiser-frames', 'merge_p1bm_frm']
+wisedir = os.path.join(unwise_symlink_dir, 'wise-frames')
+
+wisedirs = [wisedir, os.path.join(unwise_symlink_dir, 'neowiser-frames'), 'merge_p1bm_frm']
 
 mask_gz = True
 unc_gz = True
