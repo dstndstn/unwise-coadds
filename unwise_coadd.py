@@ -466,6 +466,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     # We keep all of the input frames in the list, marking ones we're not
     # going to use, for later diagnostics.
     WISE.use = np.ones(len(WISE), bool)
+    WISE.moon_rej = np.zeros(len(WISE), bool)
     WISE.use *= (WISE.qual_frame > 0)
     print 'Cut out qual_frame = 0;', sum(WISE.use), 'remaining'
     WISE.use *= (WISE.planets == 0)
@@ -497,6 +498,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         okmoon = (moonstdevs - med)/mad < 5.
         print sum(np.logical_not(okmoon)), 'of', len(okmoon), 'moon-masked frames have large pixel variance'
         WISE.use[Imoon] *= okmoon
+        WISE.moon_rej[Imoon] = (~okmoon)
         print 'Cut to', sum(WISE.use), 'on moon'
         del Imoon
         del moon
@@ -868,6 +870,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     for c,t in [('included', np.uint8),
                 ('use', np.uint8),
                 ('moon_masked', np.uint8),
+                ('moon_rej', np.uint8),
                 ('imagew', np.int16),
                 ('imageh', np.int16),
                 ('coextent', np.int16),
