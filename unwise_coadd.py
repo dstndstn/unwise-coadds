@@ -390,9 +390,12 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         from astrometry.util.run_command import run_command
         code_dir = os.path.dirname(os.path.realpath(__file__))
         cwd = os.getcwd()
-        os.chdir(code_dir)
+        do_chdir = (cwd[0:len(code_dir)] != code_dir)
+        if do_chdir:
+            os.chdir(code_dir)
         rtn,version,err = run_command('git describe')
-        os.chdir(cwd)
+        if do_chdir:
+            os.chdir(cwd)
         if rtn:
             raise RuntimeError('Failed to get version string (git describe):' + ver + err)
         version = version.strip()
