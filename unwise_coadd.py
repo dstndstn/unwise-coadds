@@ -775,6 +775,14 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     hdr.add_record(dict(name='UNW_MEDF', value=medfilt, comment='unWISE median filter sz'))
     hdr.add_record(dict(name='UNW_BGMA', value=bgmatch, comment='unWISE background matching?'))
 
+    # make sure there's always a numerical representation of epoch that can go into header
+    if epoch is None:
+        epoch_num = -1
+    else:
+        epoch_num = epoch
+
+    hdr.add_record(dict(name='EPOCH', value=epoch_num, comment='epoch number'))
+
     # "Unmasked" versions
     ofn = prefix + '-img-u.fits'
     fitsio.write(ofn, coim.astype(np.float32), header=hdr, clobber=True, extname='coadded image, outliers patched')
