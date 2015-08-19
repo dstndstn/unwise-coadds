@@ -783,6 +783,14 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
 
     hdr.add_record(dict(name='EPOCH', value=epoch_num, comment='epoch number'))
 
+    # want to change .use to .included for these header keywords eventually ...
+    # might crash if WISE.use is all zeros ...
+    kw_mjdmin = np.min((WISE[WISE.use == 1]).mjd)
+    kw_mjdmax = np.max((WISE[WISE.use == 1]).mjd)
+
+    hdr.add_record(dict(name='MJDMIN', value=kw_mjdmin, comment='minimum MJD among included L1b frames'))
+    hdr.add_record(dict(name='MJDMAX', value=kw_mjdmax, comment='maximum MJD among included L1b frames'))
+
     # "Unmasked" versions
     ofn = prefix + '-img-u.fits'
     fitsio.write(ofn, coim.astype(np.float32), header=hdr, clobber=True, extname='coadded image, outliers patched')
