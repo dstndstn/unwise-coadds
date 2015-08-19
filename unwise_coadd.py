@@ -777,34 +777,34 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
 
     # "Unmasked" versions
     ofn = prefix + '-img-u.fits'
-    fitsio.write(ofn, coim.astype(np.float32), header=hdr, clobber=True)
+    fitsio.write(ofn, coim.astype(np.float32), header=hdr, clobber=True, extname='coadded image, outliers patched')
     print 'Wrote', ofn
 
     if just_image:
         return 0
 
     ofn = prefix + '-invvar-u.fits'
-    fitsio.write(ofn, coiv.astype(np.float32), header=hdr, clobber=True)
+    fitsio.write(ofn, coiv.astype(np.float32), header=hdr, clobber=True, extname='inverse variance, outliers patched')
     print 'Wrote', ofn
     ofn = prefix + '-std-u.fits'
-    fitsio.write(ofn, copp.astype(np.float32), header=hdr, clobber=True)
+    fitsio.write(ofn, copp.astype(np.float32), header=hdr, clobber=True, extname='sample standard deviation, outliers patched')
     print 'Wrote', ofn
     ofn = prefix + '-n-u.fits'
-    fitsio.write(ofn, con.astype(np.int16), header=hdr, clobber=True)
+    fitsio.write(ofn, con.astype(np.int16), header=hdr, clobber=True, extname='integer frame coverage, outlier pixels patched')
     print 'Wrote', ofn
 
     # "Masked" versions
     ofn = prefix + '-img-m.fits'
-    fitsio.write(ofn, coimb.astype(np.float32), header=hdr, clobber=True)
+    fitsio.write(ofn, coimb.astype(np.float32), header=hdr, clobber=True, extname='coadded image, outliers removed')
     print 'Wrote', ofn
     ofn = prefix + '-invvar-m.fits'
-    fitsio.write(ofn, coivb.astype(np.float32), header=hdr, clobber=True)
+    fitsio.write(ofn, coivb.astype(np.float32), header=hdr, clobber=True, extname='inverse variance, outliers removed')
     print 'Wrote', ofn
     ofn = prefix + '-std-m.fits'
-    fitsio.write(ofn, coppb.astype(np.float32), header=hdr, clobber=True)
+    fitsio.write(ofn, coppb.astype(np.float32), header=hdr, clobber=True, extname='sample standard deviation, outliers removed')
     print 'Wrote', ofn
     ofn = prefix + '-n-m.fits'
-    fitsio.write(ofn, conb.astype(np.int16), header=hdr, clobber=True)
+    fitsio.write(ofn, conb.astype(np.int16), header=hdr, clobber=True, extname='integer frame coverage, outlier pixels removed')
     print 'Wrote', ofn
 
     if do_cube:
