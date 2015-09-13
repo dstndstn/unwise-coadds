@@ -12,6 +12,7 @@ import datetime
 import gc
 from scipy.ndimage.morphology import binary_dilation
 from scipy.ndimage.measurements import label, center_of_mass
+from zp_lookup import ZPLookUp
 
 import fitsio
 
@@ -2076,7 +2077,7 @@ def estimate_sky_2(img, lo=None, hi=None, plo=1, phi=70, bins1=30,
 
 
 def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
-                       do_check_md5)):
+                       do_check_md5, zp_lookup_obj)):
     '''
     For multiprocessing, the function called to do round 1 on a single
     input frame.
@@ -2116,7 +2117,7 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     mask = fullmask[slc]
     unc  = fullunc [slc]
 
-    zp = ihdr['MAGZP']
+    zp = zp_lookup_obj.get_zp(ihdr['MJD_OBS'])
     zpscale = 1. / zeropointToScale(zp)
     print 'Zeropoint:', zp, '-> scale', zpscale
 
@@ -2327,10 +2328,12 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
     coimgsq = np.zeros((H,W))
     cow     = np.zeros((H,W))
 
+    zp_lookup_obj = ZPLookUp(band)
+
     args = []
     for wi,wise in enumerate(WISE):
         args.append((wi, len(WISE), wise, table, L, ps, band, cowcs, medfilt,
-                     checkmd5))
+                     checkmd5, zp_lookup_obj))
     rimgs = mp.map(_coadd_one_round1, args)
     del args
 
