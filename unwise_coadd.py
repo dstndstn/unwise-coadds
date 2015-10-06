@@ -2904,7 +2904,9 @@ def main():
             T.writeto(fn)
             print 'Wrote', fn
 
-        if not len(args):
+        if opt.tile and len(args) == 0 and len(opt.band):
+            tiles.extend([b * arrayblock for b in opt.band])
+        elif not len(args):
             tiles.append(arr)
 
 
