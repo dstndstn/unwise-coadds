@@ -241,7 +241,9 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
     # 4-band, 3-band, or 2-band phase
     WISE.phase = np.zeros(len(WISE), np.uint8)
     
-    for nbands,name in [(4,'4band'), (3,'3band'), (2,'2band'), (2,'neowiser')]:
+    for nbands,name in [(4,'4band'), (3,'3band'), (2,'2band'), (2,'neowiser'),
+                        (2, 'neowiser2'),
+                        ]:
         fn = os.path.join(wisedir, 'WISE-l1b-metadata-%s.fits' % name)
         print 'Reading', fn
         bb = [1,2,3,4][:nbands]
@@ -2580,6 +2582,9 @@ def main():
     from astrometry.util.multiproc import multiproc
 
     parser = optparse.OptionParser('%prog [options]')
+
+    #parser.add_option('--wisedir', default='wise-frames', help='Directory containing WISE L1b data')
+
     parser.add_option('--threads', dest='threads', type=int, help='Multiproc',
                       default=None)
     parser.add_option('--threads1', dest='threads1', type=int, default=None,
