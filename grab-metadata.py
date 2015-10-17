@@ -8,6 +8,7 @@ for NEOWISE-R year2 data for Michael Cushing in the Hyades region.
 from glob import glob
 from astrometry.util.fits import *
 import fitsio
+import numpy as np
 
 #fns = glob('neowiser2-frames/0b/56970b/*/*-w2-int-1b.fits.gz')
 fns = glob('neowiser2-frames/*/*/*/*-w2-int-1b.fits.gz')
@@ -23,10 +24,23 @@ T.frame_num = []
 T.band = []
 T.mjd = []
 
+T.w2intmedian = []
+#T.w2intstddev = []
+T.w2intmed16ptile = []
+
 for fn in fns:
     print 'Reading', fn
     hdr = fitsio.read_header(fn)
     # the L1b WCS puts the reference point in the center.
+
+    img = fitsio.read(fn)
+    # Masked pixels?
+    p16,med = np.percentile(img, [16,50])
+    assert('w2-int-1b' in fn)
+    T.w2intmedian.append(med)
+    T.w2intmed16ptile.append(med - p16)
+    #std = np.std(img)
+    #T.w2intstddev.append(std)
 
     ra  = hdr['CRVAL1']
     dec = hdr['CRVAL2']
@@ -44,11 +58,11 @@ T.to_np_arrays()
 # FAKE!
 T.moon_masked = np.array(['00'] * len(T))
 T.w1intmedian = np.zeros(len(T), np.float32)
-T.w2intmedian = np.zeros(len(T), np.float32)
-T.w1intstddev = np.zeros(len(T), np.float32)
-T.w2intstddev = np.zeros(len(T), np.float32)
 T.w1intmed16ptile = np.zeros(len(T), np.float32)
-T.w2intmed16ptile = np.zeros(len(T), np.float32)
+T.w1intstddev = np.zeros(len(T), np.float32)
+#T.w2intmedian = np.zeros(len(T), np.float32)
+#T.w2intmed16ptile = np.zeros(len(T), np.float32)
+T.w2intstddev = np.zeros(len(T), np.float32)
 T.qual_frame = np.zeros(len(T), np.int16) + 10
 T.dtanneal = np.zeros(len(T), np.int32) + 1000000
 
