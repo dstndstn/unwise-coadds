@@ -247,7 +247,9 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
     # 4-band, 3-band, or 2-band phase
     WISE.phase = np.zeros(len(WISE), np.uint8)
     
-    for nbands,name in [(4,'4band'), (3,'3band'), (2,'2band'), (2,'neowiser')]:
+    for nbands,name in [(4,'4band'), (3,'3band'), (2,'2band'), (2,'neowiser'),
+                        (2, 'neowiser2'),
+                        ]:
         metadir = os.environ.get('UNWISE_META_DIR')
         if metadir is None:
             metadir = wisedir
