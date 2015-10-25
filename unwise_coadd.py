@@ -2746,7 +2746,10 @@ def main():
 
     parser.add_option('--epoch', type=int, help='Keep only input frames in the given epoch, zero-indexed')
 
-    parser.add_option('--before', type=float, help='Keep only input frames before the given MJD')
+    # adding this default value of before is appropriate for first year NEOWISER processing
+    # to avoid special non-public Hyades data
+    parser.add_option('--before', type=float, help='Keep only input frames before the given MJD',
+                      default=57058.9938976122)
     parser.add_option('--after',  type=float, help='Keep only input frames after the given MJD')
 
     parser.add_option('--int_gz', dest='int_gz', action='store_true', default=False,
