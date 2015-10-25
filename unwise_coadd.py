@@ -13,6 +13,7 @@ import gc
 from scipy.ndimage.morphology import binary_dilation
 from scipy.ndimage.measurements import label, center_of_mass
 from zp_lookup import ZPLookUp
+import random
 
 import fitsio
 
@@ -56,6 +57,8 @@ wisedirs = [wisedir, os.path.join(unwise_symlink_dir, 'neowiser-frames'), 'merge
 
 mask_gz = True
 unc_gz = True
+int_gz = None # should get assigned in main
+use_zp_meta = None # should get assigned in main
 
 def tile_to_radec(tileid):
     assert(len(tileid) == 8)
@@ -66,8 +69,11 @@ def tile_to_radec(tileid):
 
 def get_l1b_file(basedir, scanid, frame, band):
     scangrp = scanid[-2:]
-    return os.path.join(basedir, scangrp, scanid, '%03i' % frame, 
+    fname = os.path.join(basedir, scangrp, scanid, '%03i' % frame, 
                         '%s%03i-w%i-int-1b.fits' % (scanid, frame, band))
+    if int_gz:
+        fname += '.gz'
+    return fname
 
 # from tractor.basics.NanoMaggies
 def zeropointToScale(zp):
@@ -316,10 +322,10 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
 def check_one_md5(wise):
     intfn = get_l1b_file(wisedir, wise.scan_id, wise.frame_num, wise.band)
     uncfn = intfn.replace('-int-', '-unc-')
-    if unc_gz:
+    if unc_gz and (not int_gz):
         uncfn = uncfn + '.gz'
     maskfn = intfn.replace('-int-', '-msk-')
-    if mask_gz:
+    if mask_gz and (not int_gz):
         maskfn = maskfn + '.gz'
     instr = ''
     ok = True
@@ -607,7 +613,20 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
 
             if os.path.exists(intfn):
                 try:
-                    wcs = Sip(intfn)
+                    if not int_gz:
+                        wcs = Sip(intfn)
+                    else:
+                        tmpname = (intfn.split('/'))[-1]
+                        tmpname = tmpname.replace('.gz', '')
+                        # add random stuff to tmpname to avoid collisions b/w simultaneous jobs
+                        tmpname = str(random.randint(0, 1000000)).zfill(7) + '-' + tmpname
+                        cmd_unzip_tmp = 'gunzip -c '+ intfn + ' > ' + tmpname
+                        os.system(cmd_unzip_tmp)
+                        print tmpname, '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
+                        wcs = Sip(tmpname)
+                        # todo : delete unzipped temp file
+                        cmd_delete_tmp = 'rm ' +  tmpname
+                        os.system(cmd_delete_tmp)
                 except RuntimeError:
                     import traceback
                     traceback.print_exc()
@@ -615,8 +634,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
             else:
                 print 'does not exist:', intfn
                 continue
-            if (os.path.exists(intfn.replace('-int-', '-unc-') + '.gz') and
-                os.path.exists(intfn.replace('-int-', '-msk-') + '.gz')):
+            if (os.path.exists(intfn.replace('-int-', '-unc-') + ('.gz' if not int_gz else '')) and
+                os.path.exists(intfn.replace('-int-', '-msk-') + ('.gz' if not int_gz else ''))):
                 found = True
                 break
             else:
@@ -881,7 +900,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         # Write outlier masks
         ofn = WISE.intfn[ii].replace('-int', '')
         ofn = os.path.join(maskdir, 'unwise-mask-' + ti.coadd_id + '-'
-                           + os.path.basename(ofn) + '.gz')
+                           + os.path.basename(ofn) + ('.gz' if not int_gz else ''))
         w,h = WISE.imagew[ii],WISE.imageh[ii]
         fullmask = np.zeros((h,w), mm.omask.dtype)
         x0,x1,y0,y1 = WISE.imextent[ii,:]
@@ -1002,6 +1021,7 @@ def plot_region(r0,r1,d0,d1, ps, T, WISE, wcsfns, W, H, pixscale, margin=1.05,
 
                 intfn = get_l1b_file(wisedir, wise.scan_id, wise.frame_num, wise.band)
                 try:
+                    # what happens here when int_gz is true ???
                     wcs = Tan(intfn, 0, 1)
                 except:
                     import traceback
@@ -2089,10 +2109,10 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     print 'Coadd round 1, image', (i+1), 'of', N
     intfn = wise.intfn
     uncfn = intfn.replace('-int-', '-unc-')
-    if unc_gz:
+    if unc_gz and (not int_gz):
         uncfn = uncfn + '.gz'
     maskfn = intfn.replace('-int-', '-msk-')
-    if mask_gz:
+    if mask_gz and (not int_gz):
         maskfn = maskfn + '.gz'
     print 'intfn', intfn
     print 'uncfn', uncfn
@@ -2119,7 +2139,11 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     mask = fullmask[slc]
     unc  = fullunc [slc]
 
-    zp = zp_lookup_obj.get_zp(ihdr['MJD_OBS'])
+    if not use_zp_meta:
+        zp = zp_lookup_obj.get_zp(ihdr['MJD_OBS'])
+    else:
+        zp = ihdr['MAGZP']
+
     zpscale = 1. / zeropointToScale(zp)
     print 'Zeropoint:', zp, '-> scale', zpscale
 
@@ -2725,7 +2749,18 @@ def main():
     parser.add_option('--before', type=float, help='Keep only input frames before the given MJD')
     parser.add_option('--after',  type=float, help='Keep only input frames after the given MJD')
 
+    parser.add_option('--int_gz', dest='int_gz', action='store_true', default=False,
+                      help='Are L1b int images gzipped?')
+    parser.add_option('--use_zp_meta', dest='use_zp_meta', action='store_true', default=False,
+                      help='Should coadd use MAGZP metadata for zero points?')
+
     opt,args = parser.parse_args()
+
+    global int_gz
+    int_gz = opt.int_gz
+
+    global use_zp_meta
+    use_zp_meta = opt.use_zp_meta
 
     if opt.threads:
         mp2 = multiproc(opt.threads)
