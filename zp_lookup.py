@@ -13,13 +13,10 @@ def create_zp_interpolator(band, phase):
 
     hdus = pyfits.open(fname)
 
-    exten_dict = {'3band'    : 1,
-                  '2band'    : 2,
-                  'neowiser' : 3}
-
+    par = ZPMetaParameters(phase)
     print 'Reading zero point lookup table for phase : ' + phase + ', W' + str(band)
 
-    tab = hdus[exten_dict[phase]].data
+    tab = hdus[par.exten].data
     ntab = len(tab)
     mjds = tab['mjd']
     zps = tab['zp']
@@ -39,6 +36,7 @@ def create_zp_interpolator(band, phase):
     return interp
 
 def get_phase_mjd(mjd):
+    # should really absorb these special numbers somewhere...
     if (mjd <= 55414.4396170):
         return '4band'
     elif (mjd <= 55468.777510):
@@ -47,6 +45,77 @@ def get_phase_mjd(mjd):
          return '2band'
     else:
          return 'neowiser'
+
+class ZPMetaParameters:
+    def __init__(self, phase):
+        exten_dict = {'3band' : 1,
+                      '2band' : 2,
+                      'neowiser' : 3}
+        mjd_cen_dict = {'3band' : 55441,
+                        '2band' : 55531,
+                        'neowiser' : 56822}
+        zp_mjd_min_dict = {'3band' : 55414.9410170000,
+                           '2band' : 55469.2786560000,
+                           'neowiser' : 56640.2772121900}
+        zp_mjd_max_dict = {'3band' : 55467.9410170000,
+                           '2band' : 55593.1195440000,
+                           'neowiser' : 57004.0435914400}
+        self.exten = exten_dict[phase]
+        self.mjd_cen = mjd_cen_dict[phase]
+        # the nominal MJD of earliest per-day zero point tabulated
+        self.zp_mjd_min = zp_mjd_min_dict[phase]
+        # the nominal MJD of latest per-day zero point tabulated
+        self.zp_mjd_max = zp_mjd_max_dict[phase]
+        
+class TaperWeight:
+    """Polynomial tapering parameters"""
+
+    def __init__(self, cutoff_low, cutoff_hi, phase, is_first=False, is_last=False):
+        self.cutoff_low = cutoff_low
+        self.cutoff_hi = cutoff_hi
+        self.phase
+        self.center = (cutoff_low + cutoff_hi)/2.
+        self.is_first = is_first
+        self.is_last = is_last
+        self.slope = 1./(self.center - self.cutoff_low)
+
+    def compute_weight(self, mjd):
+        # for now this will not be vectorized ...
+        _mjd = max(min(mjd, self.cutoff_hi), self.cutoff_low)
+        weight = min(1. - (self.center - _mjd)*self.slope , 1. - (_mjd - self.center)*self.slope)
+
+        par = ZPMetaParameters(self.phase)
+
+        if self.is_first:
+            if _mjd <= par.zp_mjd_min:
+                weight = 1.
+        elif self.is_last:
+            if _mjd >= par.zp_mjd_max:
+                weight = 1.
+        return weight
+
+class TaperedPolynomial:
+    """A set of polynomial coefficients and corresponding tapering parameters"""
+    def __init__(self, coeff, taper_weight, phase):
+        self.order = len(coeff) - 1
+        self.taper_weight = taper_weight
+        self.phase = phase
+
+    def compute(self, mjd):
+        # return the tapering weight and polynomial value as a tuple
+        par = ZPMetaParameters(self.phase)
+        dt = mjd - par.mjd_cen
+        
+        poly_val = 0.
+        for i in range(0, self.order):
+            poly_val = poly_val + coeff[i]*(dt**0)
+
+        weight = taper_weight.compute_weight(mjd)
+        return poly_val, weight
+        
+
+#class PiecewisePolynomialInterpolator:
+#    """Custom interpolator using tapered piecewise polynomials"""
 
 class ZPLookUp:
     """Look up W1/W2 zero point values as a function of time"""
