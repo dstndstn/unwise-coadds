@@ -4,10 +4,11 @@ import os
 import numpy as np
 
 def create_zp_interpolator(band, phase):
-    # construct relevant file name
 
     # phase should NOT be '4band', should be one of '3band', '2band', 'neowiser'
+    assert (phase == '3band') or (phase == '2band') or (phase == 'neowiser')
 
+    # construct relevant file name
     fdir = os.environ['UNWISE_META_DIR']
     fname = os.path.join(fdir, 'zp_lookup_w' + str(band) + '.fits')
 
@@ -73,10 +74,10 @@ class TaperWeight:
     def __init__(self, cutoff_low, cutoff_hi, phase, is_first=False, is_last=False):
         self.cutoff_low = cutoff_low
         self.cutoff_hi = cutoff_hi
-        self.phase
+        self.phase = phase
         self.center = (cutoff_low + cutoff_hi)/2.
-        self.is_first = is_first
-        self.is_last = is_last
+        self.is_first = bool(is_first)
+        self.is_last = bool(is_last)
         self.slope = 1./(self.center - self.cutoff_low)
 
     def compute_weight(self, mjd):
@@ -97,25 +98,70 @@ class TaperWeight:
 class TaperedPolynomial:
     """A set of polynomial coefficients and corresponding tapering parameters"""
     def __init__(self, coeff, taper_weight, phase):
-        self.order = len(coeff) - 1
+        self.order = np.sum(np.isfinite(coeff)) - 1
+        self.coeff = coeff[0:(self.order + 1)]
         self.taper_weight = taper_weight
         self.phase = phase
 
     def compute(self, mjd):
         # return the tapering weight and polynomial value as a tuple
         par = ZPMetaParameters(self.phase)
-        dt = mjd - par.mjd_cen
-        
-        poly_val = 0.
-        for i in range(0, self.order):
-            poly_val = poly_val + coeff[i]*(dt**0)
 
-        weight = taper_weight.compute_weight(mjd)
+        _mjd = max(min(mjd, par.zp_mjd_max), par.zp_mjd_min)
+        dt = _mjd - par.mjd_cen
+
+        poly_val = 0.
+        for i in range(0, self.order + 1):
+            poly_val = poly_val + self.coeff[i]*(dt**i)
+
+        weight = (self.taper_weight).compute_weight(_mjd)
         return poly_val, weight
         
 
-#class PiecewisePolynomialInterpolator:
-#    """Custom interpolator using tapered piecewise polynomials"""
+def read_zp_poly(band, phase):
+    # read in the appropriate table of piecewise polynomials
+    fdir = os.environ['UNWISE_META_DIR']
+    fname = os.path.join(fdir, 'zp_poly_coeff_w' + str(band) + '.fits')
+
+    print 'Reading zero point polynomial coefficients for phase : ' + phase + ', W' + str(band)
+
+    hdus = pyfits.open(fname)
+
+    par = ZPMetaParameters(phase)
+    tab = hdus[par.exten].data
+
+    return tab
+        
+
+class PiecewisePolynomialInterpolator:
+    """Custom interpolator using tapered piecewise polynomials"""
+    # inputs should be band, phase
+    def __init__(self, band, phase):
+        self.band = band
+        self.phase = phase
+        self.poly_data = read_zp_poly(self.band, self.phase)
+        self.npoly = len(self.poly_data)
+
+    def compute_zp(self, mjd):
+        # for each row in that table, use TaperedPolynomial to compute
+        # polynomial value and corresponding weight
+        weight_tot = 0.
+        poly_tot = 0.
+
+        for i in range(self.npoly):
+            taper_weight = TaperWeight(self.poly_data['cutoff_low'][i], 
+                                       self.poly_data['cutoff_hi'][i], 
+                                       self.phase, 
+                                       is_first=self.poly_data['is_first'][i],
+                                       is_last=self.poly_data['is_last'][i])
+            tp = TaperedPolynomial(self.poly_data['coeff'][i], taper_weight, self.phase)
+            poly_val, weight = tp.compute(mjd)
+            poly_tot += poly_val*weight
+            weight_tot += weight
+
+        # calculate zero point as sum(weight*poly)/sum(weight)
+        zp = poly_tot/weight_tot
+        return zp
 
 class ZPLookUp:
     """Look up W1/W2 zero point values as a function of time"""
