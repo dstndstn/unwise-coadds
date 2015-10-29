@@ -166,12 +166,16 @@ class PiecewisePolynomialInterpolator:
 class ZPLookUp:
     """Look up W1/W2 zero point values as a function of time"""
 
-    def __init__(self, band):
+    def __init__(self, band, poly=False):
         self.zp_4band = {1 : 20.752, 2 : 19.596}
         self.band = band
-        self.zp_3band = create_zp_interpolator(self.band, '3band')
-        self.zp_2band = create_zp_interpolator(self.band, '2band')
-        self.zp_neowiser = create_zp_interpolator(self.band, 'neowiser')
+        self.poly = poly
+        self.zp_3band = (create_zp_interpolator(self.band, '3band') if not self.poly else 
+                         PiecewisePolynomialInterpolator(self.band, '3band'))
+        self.zp_2band = (create_zp_interpolator(self.band, '2band') if not self.poly else 
+                         PiecewisePolynomialInterpolator(self.band, '2band'))
+        self.zp_neowiser = (create_zp_interpolator(self.band, 'neowiser') if not self.poly else 
+                            PiecewisePolynomialInterpolator(self.band, 'neowiser'))
 
     def zp_interpolator_phase(self, phase):
         if (phase == '3band'):
@@ -190,5 +194,9 @@ class ZPLookUp:
             return self.zp_4band[self.band]
         else:
             interp = self.zp_interpolator_phase(phase)
-            zp = interp(mjd)
+            if not self.poly:
+                zp = interp(mjd)
+            else:
+                zp = interp.compute_zp(mjd)
+
             return zp
