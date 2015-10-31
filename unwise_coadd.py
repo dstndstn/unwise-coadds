@@ -2354,7 +2354,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
     coimgsq = np.zeros((H,W))
     cow     = np.zeros((H,W))
 
-    zp_lookup_obj = ZPLookUp(band)
+    zp_lookup_obj = ZPLookUp(band, poly=True)
 
     args = []
     for wi,wise in enumerate(WISE):
