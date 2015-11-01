@@ -2,6 +2,7 @@ from scipy.interpolate import interp1d
 import pyfits
 import os
 import numpy as np
+import scipy.special as ss
 
 def create_zp_interpolator(band, phase):
 
@@ -116,7 +117,28 @@ class TaperedPolynomial:
 
         weight = (self.taper_weight).compute_weight(_mjd)
         return poly_val, weight
-        
+
+class TaperedErf:
+    """Error function parameters and corresponding tapering parameters"""
+    def __init__(self, params, taper_weight, phase):
+        self.mjd_cen = params[0]
+        self.sigma = params[1]
+        self.ampl = params[2]
+        self.offs = params[3]
+        self.taper_weight = taper_weight
+        self.phase = phase
+
+    def compute(self, mjd):
+        # return the tapering weight and erf value as a tuple
+        par = ZPMetaParameters(self.phase)
+
+        _mjd = max(min(mjd, par.zp_mjd_max), par.zp_mjd_min)
+
+        x = (_mjd - self.mjd_cen)/self.sigma
+        erf_val = (self.ampl)*ss.erf(x) + self.offs
+
+        weight = (self.taper_weight).compute_weight(_mjd)
+        return erf_val, weight
 
 def read_zp_poly(band, phase):
     # read in the appropriate table of piecewise polynomials
@@ -154,8 +176,12 @@ class PiecewisePolynomialInterpolator:
                                        self.phase, 
                                        is_first=self.poly_data['is_first'][i],
                                        is_last=self.poly_data['is_last'][i])
-            tp = TaperedPolynomial(self.poly_data['coeff'][i], taper_weight, self.phase)
-            poly_val, weight = tp.compute(mjd)
+            if self.poly_data['order'][i] == -1:
+                t = TaperedErf(self.poly_data['coeff'][i], taper_weight, self.phase)
+            else:
+                t = TaperedPolynomial(self.poly_data['coeff'][i], taper_weight, self.phase)
+
+            poly_val, weight = t.compute(mjd)
             poly_tot += poly_val*weight
             weight_tot += weight
 
