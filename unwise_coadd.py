@@ -549,9 +549,6 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
             intfn = get_l1b_file(wisedir, wise.scan_id, wise.frame_num, band)
             if not os.path.exists(intfn):
                 print 'Need:', intfn
-                #cmd = 'rsync -LRvz carver:unwise/./%s .' % intfn
-                #print cmd
-                #os.system(cmd)
         return 0
 
     # Estimate memory usage and bail out if too high.
