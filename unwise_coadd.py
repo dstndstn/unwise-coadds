@@ -619,9 +619,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                         tmpname = str(random.randint(0, 1000000)).zfill(7) + '-' + tmpname
                         cmd_unzip_tmp = 'gunzip -c '+ intfn + ' > ' + tmpname
                         os.system(cmd_unzip_tmp)
-                        print tmpname, '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
                         wcs = Sip(tmpname)
-                        # todo : delete unzipped temp file
+                        # delete unzipped temp file
                         cmd_delete_tmp = 'rm ' +  tmpname
                         os.system(cmd_delete_tmp)
                 except RuntimeError:
