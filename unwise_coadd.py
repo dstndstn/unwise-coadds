@@ -2410,20 +2410,6 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
                                  - coimg**2))
 
     if ps:
-        # plt.clf()
-        # for rr in rimgs:
-        #     if rr is None:
-        #         continue
-        #     n,e = rr.hist
-        #     e = (e[:-1] + e[1:])/2.
-        #     plt.plot(e - rr.skyest, n, 'b-', alpha=0.1)
-        #     plt.axvline(e[0] - rr.skyest, color='r', alpha=0.1)
-        #     plt.axvline(e[-1] - rr.skyest, color='r', alpha=0.1)
-        # plt.xlabel('image - sky')
-        # ps.savefig()
-        # plt.yscale('log')
-        # ps.savefig()
-
         plt.clf()
         for rr in rimgs:
             if rr is None:
