@@ -1085,6 +1085,8 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     priorw = nprior * rr.w
     subpp = np.sqrt((subv * subw + priorv * priorw) / (subw + priorw))
     
+    # rr.rmask bit value 1 indicates that the pixel is within the coadd
+    # region.
     mask = (rr.rmask & 1).astype(bool)
 
     # like in the WISE Atlas Images, estimate sky difference via
@@ -1110,9 +1112,12 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     badpix = binary_dilation(badpix)
     # Bit 2: grown
     badpixmask += (2 * badpix)
-    # Add rchi-masked pixels to the mask
-    # (clear bit 2)
+
+    # Add dilated rchi-masked pixels to the "rmask" (clear bit 2)
     rr.rmask[badpix] &= ~2
+
+    # "omask" is the file we're going to write out saying which pixels
+    # were rchi masked, in L1b pixel space.
     mm.omask = np.zeros((rr.wcs.get_height(), rr.wcs.get_width()),
                         badpixmask.dtype)
     try:
@@ -1152,6 +1157,8 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
         mm.coimg   = mask * rr.w * rimg
         mm.cow     = mask * rr.w
         mm.con     = mask
+        # mm.rmask2 is bit value 2 from rr.rmask: original L1b pixel good
+        # times dilated rchi-based pixel good.
         mm.rmask2  = (rr.rmask & 2).astype(bool)
 
     mm.dsky = dsky / rr.zpscale
@@ -2234,8 +2241,10 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     rr.rimg = np.zeros((coH, coW), img.dtype)
     rr.rimg[Yo, Xo] = rim
     rr.rmask = np.zeros((coH, coW), np.uint8)
-    # bit 0: old rmask
-    # bit 1: old rmask2
+    '''
+    rr.rmask bit 0 (value 1): This pixel is within the coadd footprint.
+    rr.rmask bit 1 (value 2): This pixel is good.
+    '''
     rr.rmask[Yo, Xo] = 1 + 2*goodmask[Yi, Xi]
     rr.wcs = wcs
     rr.sky = sky
@@ -2321,6 +2330,9 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
                 rr.bgmatch = bg
                 
         # note, rr.w is a scalar.
+        # (rr.rmask & 1) means "use these coadd pixels"
+        #  rr.rimg is 0 where that bit is zero, so no need to multiply by
+        #  that mask when accumulating here.
         coimgsq[slc] += rr.w * (rr.rimg**2)
         coimg  [slc] += rr.w *  rr.rimg
         cow    [slc] += rr.w * (rr.rmask & 1)
