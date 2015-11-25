@@ -6,7 +6,7 @@ from wise_l1b_maskinterp import wise_l1b_maskinterp
 class WarpParameters:
     # Object to hold a warp's polynomial coefficients and reference coords
     def __init__(self, coeff, xmed, ymed, x_l1b_quad, y_l1b_quad, 
-                 outlier_flag, chi2_mean, chi2_mean_raw):
+                 outlier_flag, chi2_mean, chi2_mean_raw, pred):
         # maybe i should store the chi-squared in this object as well
         self.coeff = coeff
         self.xmed = xmed
@@ -22,6 +22,7 @@ class WarpParameters:
         self.coverage = self.coverage_from_xy()
         self.chi2_mean = chi2_mean
         self.chi2_mean_raw = chi2_mean_raw
+        self.pred = pred # the warp values or pixels (x_l1b_quad, y_l1b_quad)
 
     def coverage_from_xy(self):
         par = WarpMetaParameters()
@@ -140,7 +141,7 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref):
     print chi2_mean, '~~~~~~~'
 
     warp = WarpParameters(coeff, xmed, ymed, x_l1b_quad, y_l1b_quad, 
-                          ~isgood, chi2_mean, chi2_mean_raw)
+                          ~isgood, chi2_mean, chi2_mean_raw, pred)
     return warp
 
 def mask_extreme_pix(image, ignore=None):
@@ -276,11 +277,9 @@ class L1bWarpQuadrant():
             self.coadd_unc_fit = self.coadd_unc[mask]
 
             
-        ##    self.warp = compute_warp(self.quad_int_fit, self.coadd_int_fit, 
-        ##                             self.x_fit, self.y_fit, 
-        ##                             self.coadd_unc_fit)
-        ##else:
-        ##    self.warp = None
+            self.warp = compute_warp(self.quad_int_fit, self.coadd_int_fit, 
+                                     self.x_fit, self.y_fit, 
+                                     self.coadd_unc_fit)
 
     def extract_l1b_quadrant(self):
         par = WarpMetaParameters()
@@ -341,8 +340,8 @@ class L1bWarpQuadrant():
 
 class L1bQuadrantWarper:
     # object encapsulating the entire warping process
-    def __init__(self, l1b_image, l1b_mask, coadd_image, coadd_unc, l1b_wcs, 
-                 coadd_wcs):
+    def __init__(self, l1b_image, l1b_mask, coadd_image, coadd_unc, coadd_n,
+                 l1b_wcs, coadd_wcs):
         # l1b_image and coadd_imae should both be in vega nanomaggies !!!
         t0 = time.time()
         self.l1b_image = wise_l1b_maskinterp(l1b_image, l1b_mask)
@@ -350,21 +349,23 @@ class L1bQuadrantWarper:
         print str(dt) + ' ........................'
         self.l1b_mask = l1b_mask
         self.coadd_image = coadd_image
-        self.coadd_unc = coadd_unc
+        self.coadd_unc = coadd_unc*np.sqrt(coadd_n) # HACK !!!!
+        self.coadd_n = coadd_n
         self.l1b_wcs = l1b_wcs
         self.coadd_wcs = coadd_wcs
         self.quadrant1 = L1bWarpQuadrant(1, self.l1b_image, l1b_mask, 
-                                         coadd_image, coadd_unc, l1b_wcs, 
-                                         coadd_wcs)
+                                         coadd_image, self.coadd_unc, 
+                                         l1b_wcs, coadd_wcs)
         self.quadrant2 = L1bWarpQuadrant(2, self.l1b_image, l1b_mask, 
-                                         coadd_image, coadd_unc, l1b_wcs, 
-                                         coadd_wcs)
+                                         coadd_image, self.coadd_unc, 
+                                         l1b_wcs, coadd_wcs)
         self.quadrant3 = L1bWarpQuadrant(3, self.l1b_image, l1b_mask, 
-                                         coadd_image, coadd_unc, l1b_wcs, 
-                                         coadd_wcs)
+                                         coadd_image, self.coadd_unc, 
+                                         l1b_wcs, coadd_wcs)
         self.quadrant4 = L1bWarpQuadrant(4, self.l1b_image, l1b_mask, 
-                                         coadd_image, coadd_unc, l1b_wcs, 
-                                         coadd_wcs)
+                                         coadd_image, self.coadd_unc,
+                                         l1b_wcs, coadd_wcs)
+
     def get_quadrant(self, quad_num):
         if quad_num == 1:
             return self.quadrant1
@@ -375,7 +376,7 @@ class L1bQuadrantWarper:
         elif quad_num == 4:
             return self.quadrant4
 
-# upgrade wise_l1b_maskinterp to mirror more closely what the IDL version does
+# optimize wise_l1b_maskinterp, right now it's dumbly inefficient
 
 # add a verbose keyword to compute warp to dictate whether various
 # printouts happen or not

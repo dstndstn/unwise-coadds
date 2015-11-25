@@ -218,12 +218,15 @@ def test_warper_many_exp(band=1, quad_num=1):
 
     fname_coadd_int = '/scratch1/scratchdirs/ameisner/unwise-coadds/fulldepth_zp/343/3433p000/unwise-3433p000-w1-img-u.fits'
     fname_coadd_unc =  '/scratch1/scratchdirs/ameisner/unwise-coadds/fulldepth_zp/343/3433p000/unwise-3433p000-w1-std-u.fits'
+    fname_coadd_n =  '/scratch1/scratchdirs/ameisner/unwise-coadds/fulldepth_zp/343/3433p000/unwise-3433p000-w1-n-u.fits'
 
     hdus = pyfits.open(fname_coadd_int)
     coadd_image = hdus[0].data
     hdus = pyfits.open(fname_coadd_unc)
     coadd_unc = hdus[0].data
     coadd_wcs = Tan(fname_coadd_int)
+    hdus = pyfits.open(fname_coadd_n)
+    coadd_n = hdus[0].data
 
     for i in range(nexp):
         if not tab['moon_rej'][i]:
@@ -256,17 +259,33 @@ def test_warper_many_exp(band=1, quad_num=1):
     #   create a warper object with all of the stuff i read in
         my_warper = warp_l1b_quadrants.L1bQuadrantWarper(l1b_image, l1b_mask,
                                                      coadd_image, coadd_unc, 
-                                                     l1b_wcs, coadd_wcs)
-        if (my_warper.get_quadrant(quad_num)).npix_good > 40000:
+                                                     coadd_n, l1b_wcs, coadd_wcs)
+        if (my_warper.get_quadrant(quad_num)).npix_good >= 86000:
             # plot some stuff
-            plt.figure(figsize=(10,4))
-            plt.subplot(1,2,1)
-            plt.imshow(my_warper.get_quadrant(quad_num).quad_int - np.median(my_warper.get_quadrant(quad_num).quad_int), origin='lower', vmin=-10, vmax=40, interpolation='nearest', cmap='gray')
+            plt.figure(figsize=(16,3))
             coadd_cutout = np.zeros((508, 508))
-            coadd_cutout[my_warper.get_quadrant(quad_num).y_overlap_quad, my_warper.get_quadrant(quad_num).x_overlap_quad] = my_warper.get_quadrant(quad_num).coadd_int
-            plt.subplot(1,2,2)
+            coadd_cutout[my_warper.get_quadrant(quad_num).y_fit, my_warper.get_quadrant(quad_num).x_fit] = my_warper.get_quadrant(quad_num).coadd_int_fit
+            quad_cutout = np.zeros((508, 508))
+            quad_cutout[my_warper.get_quadrant(quad_num).y_fit, my_warper.get_quadrant(quad_num).x_fit] = my_warper.get_quadrant(quad_num).quad_int_fit
+            quad_cutout -= np.median(my_warper.get_quadrant(quad_num).quad_int_fit)
+            print my_warper.get_quadrant(1).npix_good, my_warper.get_quadrant(2).npix_good, my_warper.get_quadrant(3).npix_good,my_warper.get_quadrant(4).npix_good
+            warp = my_warper.get_quadrant(quad_num).warp
+            warp_image = warp_l1b_quadrants.render_warp(warp)
+            warp_image -= np.median(warp_image[warp_image != 0])
+
+            pred_warp_image = np.zeros((508,508))
+            pred_warp_image[warp.y_l1b_quad, warp.x_l1b_quad] = warp.pred
+            pred_warp_image -= np.median(warp.pred)
+            print str(warp.chi2_mean) + ' &&&&&&&&&&&&&&&&&&&&&&'
+            plt.subplot(1,4,1)
+            plt.imshow(quad_cutout, origin='lower', vmin=-10, vmax=40, interpolation='nearest', cmap='gray')
+            plt.subplot(1,4,2)
             plt.imshow(coadd_cutout, origin='lower', vmin=-10, vmax=40, interpolation='nearest', cmap='gray')
+            plt.subplot(1,4,3)
+            plt.imshow(warp_image, origin='lower', vmin=-10, vmax=40, interpolation='nearest', cmap='gray')
+            plt.subplot(1,4,4)
+            #plt.imshow(pred_warp_image, origin='lower', vmin=-10, vmax=40, interpolation='nearest', cmap='gray')
+            plt.imshow(quad_cutout-warp_image, origin='lower', vmin=-10, vmax=40, interpolation='nearest', cmap='gray')
             plt.show()
 
         #print str(dt) + ' !!!!!'
-        print my_warper.get_quadrant(quad_num).npix_good, my_warper.quadrant2.npix_good, my_warper.quadrant3.npix_good,my_warper.quadrant4.npix_good
