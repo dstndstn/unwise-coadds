@@ -386,6 +386,18 @@ def get_epoch_breaks(mjds):
     print 'Found', len(ebreaks), 'epoch breaks'
     return ebreaks
 
+def cut_to_epoch(WISE, epoch):
+    if epoch is not None:
+        ebreaks = get_epoch_breaks(WISE.mjd)
+        assert(epoch <= len(ebreaks))
+        if epoch > 0:
+            WISE = WISE[WISE.mjd >= ebreaks[epoch - 1]]
+        if epoch < len(ebreaks):
+            WISE = WISE[WISE.mjd <  ebreaks[epoch]]
+        print 'Cut to', len(WISE), 'within epoch'
+
+    return WISE
+
 def one_coadd(ti, band, W, H, pixscale, WISE,
               ps, wishlist, outdir, mp1, mp2, do_cube, plots2,
               frame0, nframes, force, medfilt, maxmem, do_dsky, checkmd5,
@@ -458,14 +470,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     print 'cut to', len(WISE), 'in RA,Dec box'
 
     # Use a subset of frames?
-    if epoch is not None:
-        ebreaks = get_epoch_breaks(WISE.mjd)
-        assert(epoch <= len(ebreaks))
-        if epoch > 0:
-            WISE = WISE[WISE.mjd >= ebreaks[epoch - 1]]
-        if epoch < len(ebreaks):
-            WISE = WISE[WISE.mjd <  ebreaks[epoch]]
-        print 'Cut to', len(WISE), 'within epoch'
+    WISE = cut_to_epoch(WISE, epoch)
 
     if bgmatch or center:
         # reorder by dist from center
