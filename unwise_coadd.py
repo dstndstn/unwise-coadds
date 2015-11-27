@@ -75,6 +75,11 @@ def get_l1b_file(basedir, scanid, frame, band):
         fname += '.gz'
     return fname
 
+def int_from_scan_frame(scan_id, frame_num):
+    val_str = scan_id[0:5] + str(frame_num).zfill(3)
+    val = int(val_str)
+    return val
+
 # from tractor.basics.NanoMaggies
 def zeropointToScale(zp):
     '''
@@ -2208,6 +2213,8 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
         
     # add some noise to smooth out "dynacal" artifacts
     fim = fullimg[fullok]
+    scan_frame_int = int_from_scan_frame(wise.scan_id, wise.frame_num)
+    np.random.seed(scan_frame_int)
     fim += np.random.normal(scale=sig1, size=fim.shape) 
     if ps:
         vals,counts,fitcounts,sky,warn,be1,bc1 = estimate_mode(fim, return_fit=True)
