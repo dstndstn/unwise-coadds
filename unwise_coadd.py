@@ -386,7 +386,7 @@ def get_epoch_breaks(mjds):
     print 'Found', len(ebreaks), 'epoch breaks'
     return ebreaks
 
-def cut_to_epoch(WISE, epoch):
+def cut_to_epoch(WISE, epoch, before, after):
     if epoch is not None:
         ebreaks = get_epoch_breaks(WISE.mjd)
         assert(epoch <= len(ebreaks))
@@ -395,6 +395,18 @@ def cut_to_epoch(WISE, epoch):
         if epoch < len(ebreaks):
             WISE = WISE[WISE.mjd <  ebreaks[epoch]]
         print 'Cut to', len(WISE), 'within epoch'
+
+    if before is not None:
+        WISE.cut(WISE.mjd < before)
+        print 'Cut to', len(WISE), 'frames before MJD', before
+    if after is not None:
+        WISE.cut(WISE.mjd > after)
+        print 'Cut to', len(WISE), 'frames after MJD', after
+
+    # should probably add a check here on whether this is all sane
+    # i.e. i could imagine values of before and after that are
+    # totally inconsistent with ebreaks, leading to WISE
+    # having zero rows after cuts
 
     return WISE
 
@@ -470,7 +482,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     print 'cut to', len(WISE), 'in RA,Dec box'
 
     # Use a subset of frames?
-    WISE = cut_to_epoch(WISE, epoch)
+    WISE = cut_to_epoch(WISE, epoch, before, after)
 
     if bgmatch or center:
         # reorder by dist from center
@@ -538,14 +550,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     print 'Frames:'
     for i,w in enumerate(WISE):
         print '  ', i, w.scan_id, '%4i' % w.frame_num, 'MJD', w.mjd
-
-    if before is not None:
-        WISE.cut(WISE.mjd < before)
-        print 'Cut to', len(WISE), 'frames before MJD', before
-    if after is not None:
-        WISE.cut(WISE.mjd > after)
-        print 'Cut to', len(WISE), 'frames after MJD', after
-            
+   
     if frame0 or nframes:
         i0 = frame0
         if nframes:
