@@ -59,6 +59,7 @@ mask_gz = True
 unc_gz = True
 int_gz = None # should get assigned in main
 use_zp_meta = None # should get assigned in main
+compare_moon_all = None # should get assigned in main
 
 def tile_to_radec(tileid):
     assert(len(tileid) == 8)
@@ -482,7 +483,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     print 'cut to', len(WISE), 'in RA,Dec box'
 
     # Use a subset of frames?
-    WISE = cut_to_epoch(WISE, epoch, before, after)
+    if not compare_moon_all:
+        WISE = cut_to_epoch(WISE, epoch, before, after)
 
     if bgmatch or center:
         # reorder by dist from center
@@ -546,6 +548,9 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         del mad
         del moonstdevs
         del okmoon
+
+    if compare_moon_all:
+        WISE = cut_to_epoch(WISE, epoch, before, after)
 
     print 'Frames:'
     for i,w in enumerate(WISE):
@@ -2755,6 +2760,8 @@ def main():
                       help='Are L1b int images gzipped?')
     parser.add_option('--use_zp_meta', dest='use_zp_meta', action='store_true', default=False,
                       help='Should coadd use MAGZP metadata for zero points?')
+    parser.add_option('--compare_moon_all', dest='compare_moon_all', action='store_true', default=False,
+                      help='When making Moon cut, determine threshold using all available frames regardless of epoch?')
 
     opt,args = parser.parse_args()
 
@@ -2763,6 +2770,9 @@ def main():
 
     global use_zp_meta
     use_zp_meta = opt.use_zp_meta
+
+    global compare_moon_all
+    compare_moon_all = opt.compare_moon_all
 
     if opt.threads:
         mp2 = multiproc(opt.threads)
