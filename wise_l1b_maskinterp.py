@@ -3,8 +3,6 @@ from astrometry.util.miscutils import patch_image
 from scipy.ndimage.morphology import binary_dilation
 
 def wise_l1b_maskinterp(l1b_image, l1b_mask, nointerp=False):
-    # for now just interpolate of nan's
-
     # nointerp keyword meant to be a way to just return the mask
 
     # deal with cosmic rays
