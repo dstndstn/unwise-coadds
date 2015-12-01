@@ -9,6 +9,8 @@ from unwise_coadd import get_l1b_file
 from unwise_coadd import zeropointToScale
 import time
 import fitsio
+import os
+import matplotlib as mpl
 
 def test_all_fake():
     # this is totally broken ... need to implement
@@ -206,8 +208,9 @@ def test_warper_many_exp(band=1, quad_num=1):
     band_str = str(band)
     coadd_id = '3433p000'
 
+    scratch = os.environ['SCRATCH']
     # read in the unwise-????p???-w?-frames.fits table
-    fname_frames = '/scratch1/scratchdirs/ameisner/unwise-coadds/fulldepth_zp/343/3433p000/unwise-3433p000-w' + band_str + '-frames.fits'
+    fname_frames = scratch + '/unwise-coadds/fulldepth_zp/343/3433p000/unwise-3433p000-w' + band_str + '-frames.fits'
     hdus = pyfits.open(fname_frames)
     tab = hdus[1].data
 
@@ -216,9 +219,10 @@ def test_warper_many_exp(band=1, quad_num=1):
 
     # read in the coadd image and coadd uncertainty and coadd wcs
 
-    fname_coadd_int = '/scratch1/scratchdirs/ameisner/unwise-coadds/fulldepth_zp/343/3433p000/unwise-3433p000-w1-img-u.fits'
-    fname_coadd_unc =  '/scratch1/scratchdirs/ameisner/unwise-coadds/fulldepth_zp/343/3433p000/unwise-3433p000-w1-std-u.fits'
-    fname_coadd_n =  '/scratch1/scratchdirs/ameisner/unwise-coadds/fulldepth_zp/343/3433p000/unwise-3433p000-w1-n-u.fits'
+    band_str = str(band)
+    fname_coadd_int = scratch + '/unwise-coadds/fulldepth_zp/343/3433p000/unwise-3433p000-w'+band_str+'-img-u.fits'
+    fname_coadd_unc =  scratch + '/unwise-coadds/fulldepth_zp/343/3433p000/unwise-3433p000-w'+band_str+'-std-u.fits'
+    fname_coadd_n =  scratch + '/unwise-coadds/fulldepth_zp/343/3433p000/unwise-3433p000-w'+band_str+'-n-u.fits'
 
     hdus = pyfits.open(fname_coadd_int)
     coadd_image = hdus[0].data
@@ -257,9 +261,11 @@ def test_warper_many_exp(band=1, quad_num=1):
 
 #        t0 = time.time()
     #   create a warper object with all of the stuff i read in
+        t0 = time.time()
         my_warper = warp_l1b_quadrants.L1bQuadrantWarper(l1b_image, l1b_mask,
                                                      coadd_image, coadd_unc, 
                                                      coadd_n, l1b_wcs, coadd_wcs)
+        dt = time.time() - t0
         if (my_warper.get_quadrant(quad_num)).npix_good >= 86000:
             # plot some stuff
             plt.figure(figsize=(16,3))
@@ -267,22 +273,39 @@ def test_warper_many_exp(band=1, quad_num=1):
             coadd_cutout[my_warper.get_quadrant(quad_num).y_fit, my_warper.get_quadrant(quad_num).x_fit] = my_warper.get_quadrant(quad_num).coadd_int_fit
             quad_cutout = np.zeros((508, 508))
             quad_cutout[my_warper.get_quadrant(quad_num).y_fit, my_warper.get_quadrant(quad_num).x_fit] = my_warper.get_quadrant(quad_num).quad_int_fit
+
+            extreme_mask = np.zeros((508, 508))  #
+            x_overlap = my_warper.get_quadrant(quad_num).x_overlap_quad
+            y_overlap = my_warper.get_quadrant(quad_num).y_overlap_quad
+            extreme_pix_flag = my_warper.get_quadrant(quad_num).extreme_pix_mask
+            extreme_mask[y_overlap[~extreme_pix_flag], x_overlap[~extreme_pix_flag]] = 1
+
+            plotmask = (quad_cutout == 0) & (extreme_mask == 0)
             quad_cutout -= np.median(my_warper.get_quadrant(quad_num).quad_int_fit)
             print my_warper.get_quadrant(1).npix_good, my_warper.get_quadrant(2).npix_good, my_warper.get_quadrant(3).npix_good,my_warper.get_quadrant(4).npix_good
             warp = my_warper.get_quadrant(quad_num).warp
             warp_image = warp_l1b_quadrants.render_warp(warp)
-            warp_image -= np.median(warp_image[warp_image != 0])
+            no_warp = (warp_image != 0)
+            warp_image -= np.median(warp_image[no_warp])
 
             pred_warp_image = np.zeros((508,508))
             pred_warp_image[warp.y_l1b_quad, warp.x_l1b_quad] = warp.pred
             pred_warp_image -= np.median(warp.pred)
             print str(warp.chi2_mean) + ' &&&&&&&&&&&&&&&&&&&&&&'
             plt.subplot(1,4,1)
-            plt.imshow(quad_cutout, origin='lower', vmin=-10, vmax=40, interpolation='nearest', cmap='gray')
+            #mask = [quad_cutout == 0]
+            cmap = mpl.cm.gray
+            cmap.set_bad('skyblue', 1)
+            print str(my_warper.get_num_warps()) + ' @@@@@@@@@@@@' + str(dt) + ' @@@@@@@@@'
+            #print str(plotmask.shape) + ' @@@@@@@@@@@@@@@@@@@@@@@@@@'
+
+            plt.imshow(quad_cutout, origin='lower', vmin=-10, vmax=40, interpolation='nearest', cmap=cmap)
             plt.subplot(1,4,2)
             plt.imshow(coadd_cutout, origin='lower', vmin=-10, vmax=40, interpolation='nearest', cmap='gray')
             plt.subplot(1,4,3)
-            plt.imshow(warp_image, origin='lower', vmin=-10, vmax=40, interpolation='nearest', cmap='gray')
+            vmin_warp = scoreatpercentile(warp_image[no_warp], 5)
+            vmax_warp = scoreatpercentile(warp_image[no_warp], 95)
+            plt.imshow(np.ma.array(warp_image, mask=plotmask), origin='lower', vmin=vmin_warp, vmax=vmax_warp, interpolation='nearest', cmap=cmap)
             plt.subplot(1,4,4)
             #plt.imshow(pred_warp_image, origin='lower', vmin=-10, vmax=40, interpolation='nearest', cmap='gray')
             plt.imshow(quad_cutout-warp_image, origin='lower', vmin=-10, vmax=40, interpolation='nearest', cmap='gray')
