@@ -263,12 +263,14 @@ class L1bWarpQuadrant():
         self.coadd_unc_fit = None
         self.x_fit = None
         self.y_fit = None
+        self.extreme_pix_mask = None
 
         # self.warp is meant to hold the warp summary object, in the event
         # that there are indeed sufficient pixels of overlap to fit a warp
         self.warp = None
         if self.enough_pix:
             mask = mask_extreme_pix(self.coadd_int)
+            self.extreme_pix_mask = mask # maybe clean this up...
 
             self.x_fit = self.x_overlap_quad[mask]
             self.y_fit = self.y_overlap_quad[mask]
@@ -342,7 +344,7 @@ class L1bQuadrantWarper:
     # object encapsulating the entire warping process
     def __init__(self, l1b_image, l1b_mask, coadd_image, coadd_unc, coadd_n,
                  l1b_wcs, coadd_wcs):
-        # l1b_image and coadd_imae should both be in vega nanomaggies !!!
+        # l1b_image and coadd_image should both be in vega nanomaggies !!!
         t0 = time.time()
         self.l1b_image = wise_l1b_maskinterp(l1b_image, l1b_mask)
         dt = time.time()-t0
@@ -375,6 +377,10 @@ class L1bQuadrantWarper:
             return self.quadrant3
         elif quad_num == 4:
             return self.quadrant4
+
+    def get_num_warps(self):
+        num_warps = int(self.quadrant1.enough_pix) + int(self.quadrant2.enough_pix) + int(self.quadrant3.enough_pix) + int(self.quadrant4.enough_pix)
+        return num_warps
 
 # optimize wise_l1b_maskinterp, right now it's dumbly inefficient
 
