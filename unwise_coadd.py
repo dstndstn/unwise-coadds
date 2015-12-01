@@ -1844,7 +1844,6 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     #sig1 = 1./np.sqrt(median_f(coinvvarb[::4,::4].astype(np.float32)))
     try:
         sky = estimate_mode(coimgb)
-        #sky = estimate_sky(coimgb, med-2.*sig1, med+1.*sig1, omit=None)
         print 'Estimated coadd sky:', sky
         coimg  -= sky
         coimgb -= sky
@@ -2004,115 +2003,6 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
             coimgb, coinvvarb, coppstdb, conb,
             masks, cube, sky,
             coadd.comin, coadd.comax, coadd.cominb, coadd.comaxb)
-
-
-def estimate_sky(img, lo, hi, omit=None, maxdev=0., return_fit=False):
-    # Estimate sky level by: compute the histogram within [lo,hi], fit
-    # a parabola to the log-counts, return the argmax of that parabola.
-    binedges = np.linspace(lo, hi, 25)
-    counts,e = np.histogram(img.ravel(), bins=binedges)
-    bincenters = binedges[:-1] + (binedges[1]-binedges[0])/2.
-
-    if omit is not None:
-        # Omit the bin containing value 'omit'
-        okI = np.logical_not((binedges[:-1] < omit) * (omit < binedges[1:]))
-        bincenters = bincenters[okI]
-        counts = counts[okI]
-
-    b = np.log10(np.maximum(1, counts))
-
-    if maxdev > 0:
-        # log-deviation of a bin from the mean of its neighbors --
-        de = (b[1:-1] - (b[:-2] + b[2:])/2)
-        print 'Max deviation:', np.max(de)
-        okI = np.append(np.append([True], (de < maxdev)), [True])
-        bincenters = bincenters[okI]
-        b = b[okI]
-
-    xscale = 0.5 * (hi - lo)
-    x0 = (hi + lo) / 2.
-    x = (bincenters - x0) / xscale
-
-    A = np.zeros((len(x), 3))
-    A[:,0] = 1.
-    A[:,1] = x
-    A[:,2] = x**2
-    res = np.linalg.lstsq(A, b)
-    X = res[0]
-    mx = -X[1] / (2. * X[2])
-    mx = (mx * xscale) + x0
-
-    if return_fit:
-        bfit = X[0] + X[1] * x + X[2] * x**2
-        return (x * xscale + x0, b, bfit, mx)
-
-    return mx
-
-
-def estimate_sky_2(img, lo=None, hi=None, plo=1, phi=70, bins1=30,
-                   flo=0.5, fhi=0.8, bins2=30,
-                   return_fit=False):
-    # Estimate sky level by: compute the histogram within [lo,hi], fit
-    # a parabola to the log-counts, return the argmax of that parabola.
-    # Coarse bin to find the peak (mode)
-    if lo is None:
-        lo = np.percentile(img, plo)
-    if hi is None:
-        hi = np.percentile(img, phi)
-
-    binedges1 = np.linspace(lo, hi, bins1+1)
-    counts1,e = np.histogram(img.ravel(), bins=binedges1)
-    bincenters1 = binedges1[:-1] + (binedges1[1]-binedges1[0])/2.
-    maxbin = np.argmax(counts1)
-    maxcount = counts1[maxbin]
-    mode = bincenters1[maxbin]
-
-    # Search for bin containing < {flo,fhi} * maxcount
-    ilo = maxbin
-    while ilo > 0:
-        ilo -= 1
-        if counts1[ilo] < flo*maxcount:
-            break
-    ihi = maxbin
-    while ihi < bins1-1:
-        ihi += 1
-        if counts1[ihi] < fhi*maxcount:
-            break
-    
-    lo = bincenters1[ilo]
-    hi = bincenters1[ihi]
-    
-    binedges = np.linspace(lo, hi, bins2)
-    counts,e = np.histogram(img.ravel(), bins=binedges)
-    bincenters = binedges[:-1] + (binedges[1]-binedges[0])/2.
-    
-    b = np.log10(np.maximum(1, counts))
-
-    xscale = 0.5 * (hi - lo)
-    x0 = (hi + lo) / 2.
-    x = (bincenters - x0) / xscale
-
-    A = np.zeros((len(x), 3))
-    A[:,0] = 1.
-    A[:,1] = x
-    A[:,2] = x**2
-    res = np.linalg.lstsq(A, b)
-    X = res[0]
-    mx = -X[1] / (2. * X[2])
-    mx = (mx * xscale) + x0
-
-    warn = False
-    if not (mx > lo and mx < hi):
-        print 'WARNING: sky estimate not bracketed by peak: lo %f, sky %f, hi %f' % (lo, mx, hi)
-        warn = True
-        
-    if return_fit:
-        bfit = X[0] + X[1] * x + X[2] * x**2
-        return (x * xscale + x0, b, bfit, mx, warn, binedges1,counts1)
-                
-
-    return mx
-
 
 def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
                        do_check_md5, zp_lookup_obj)):
