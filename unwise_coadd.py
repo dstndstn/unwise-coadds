@@ -1839,9 +1839,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     coppstd  /= np.sqrt(np.maximum(1., (con  - 1).astype(float)))
     coppstdb /= np.sqrt(np.maximum(1., (conb - 1).astype(float)))
 
-    # re-estimate and subtract sky from the coadd.  approx median:
-    #med = median_f(coimgb[::4,::4].astype(np.float32))
-    #sig1 = 1./np.sqrt(median_f(coinvvarb[::4,::4].astype(np.float32)))
+    # re-estimate and subtract sky from the coadd
     try:
         sky = estimate_mode(coimgb)
         print 'Estimated coadd sky:', sky
