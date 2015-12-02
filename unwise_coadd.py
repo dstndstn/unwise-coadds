@@ -2671,11 +2671,9 @@ def main():
     else:
         mp1 = multiproc(opt.threads1)
 
-    batch = False
     arr = os.environ.get('PBS_ARRAYID')
     if arr is not None:
         arr = int(arr)
-        batch = True
 
     radec = opt.ra is not None and opt.dec is not None
 
