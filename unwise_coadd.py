@@ -61,6 +61,21 @@ int_gz = None # should get assigned in main
 use_zp_meta = None # should get assigned in main
 compare_moon_all = None # should get assigned in main
 
+def retrieve_git_version():
+    from astrometry.util.run_command import run_command
+    code_dir = os.path.dirname(os.path.realpath(__file__))
+    cwd = os.getcwd()
+    do_chdir = (cwd[0:len(code_dir)] != code_dir)
+    if do_chdir:
+        os.chdir(code_dir)
+    rtn,version,err = run_command('git describe')
+    if do_chdir:
+        os.chdir(cwd)
+    if rtn:
+        raise RuntimeError('Failed to get version string (git describe):' + ver + err)
+    version = version.strip()
+    return version
+
 def tile_to_radec(tileid):
     assert(len(tileid) == 8)
     ra = int(tileid[:4], 10) / 10.
@@ -426,18 +441,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     wisepixscale = 2.75
 
     if version is None:
-        from astrometry.util.run_command import run_command
-        code_dir = os.path.dirname(os.path.realpath(__file__))
-        cwd = os.getcwd()
-        do_chdir = (cwd[0:len(code_dir)] != code_dir)
-        if do_chdir:
-            os.chdir(code_dir)
-        rtn,version,err = run_command('git describe')
-        if do_chdir:
-            os.chdir(cwd)
-        if rtn:
-            raise RuntimeError('Failed to get version string (git describe):' + ver + err)
-        version = version.strip()
+        version = retrieve_git_version()
     print '"git describe" version info:', version
 
     if not force_outdir:
