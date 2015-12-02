@@ -2430,88 +2430,6 @@ def _bounce_one_coadd(A):
         traceback.print_exc()
         return -1
 
-def todo(T, W, H, pixscale, outdirs, r0,r1,d0,d1, ps, dataset, bands=[1,2,3,4],
-         margin=1.05, allsky=False, pargs={}, justdir=False):
-    # Check which tiles still need to be done.
-    need = []
-    for band in bands:
-        tiles = []
-        for i in range(len(T)):
-            found = False
-            for outdir in outdirs:
-                thisdir = get_dir_for_coadd(outdir, T.coadd_id[i])
-                if justdir:
-                    ofn = thisdir
-                else:
-                    tag = 'unwise-%s-w%i' % (T.coadd_id[i], band)
-                    prefix = os.path.join(thisdir, tag)
-                    #ofn = prefix + '-img-m.fits'
-                    ofn = prefix + '-frames.fits'
-
-                if os.path.exists(ofn):
-                    print 'Output file exists:', ofn
-                    found = True
-                    break
-            if found:
-                tiles.append(T.coadd_id[i])
-                continue
-
-            print 'Need', ofn
-            need.append(band * arrayblock + i)
-
-        fns = []
-        if band == bands[0]:
-            print 'plot A'
-            plot_region(r0,r1,d0,d1, ps, T, None, fns, W, H, pixscale,
-                        margin=margin, allsky=allsky, tiles=tiles, **pargs)
-        else:
-            print 'plot B'
-            plot_region(r0,r1,d0,d1, ps, None, None, fns, W, H, pixscale,
-                        margin=margin, allsky=allsky, tiles=tiles, **pargs)
-    print ' '.join('%i' %i for i in need)
-
-    # write out scripts
-    if False:
-        for i in need:
-            script = '\n'.join(['#! /bin/bash',
-                                ('#PBS -N %s-%i' % (dataset, i)),
-                                '#PBS -l cput=1:00:00',
-                                '#PBS -l pvmem=4gb',
-                                'cd $PBS_O_WORKDIR',
-                                ('export PBS_ARRAYID=%i' % i),
-                                './wise-coadd.py',
-                                ''])
-            sfn = 'pbs-%s-%i.sh' % (dataset, i)
-            write_file(script, sfn)
-            os.system('chmod 755 %s' % sfn)
-
-    # Collapse contiguous ranges
-    strings = []
-    if len(need):
-        start = need.pop(0)
-        end = start
-        while len(need):
-            x = need.pop(0)
-            if x == end + 1:
-                # extend this run
-                end = x
-            else:
-                # run finished; output and start new one.
-                if start == end:
-                    strings.append('%i' % start)
-                else:
-                    strings.append('%i-%i' % (start, end))
-                start = end = x
-        # done; output
-        if start == end:
-            strings.append('%i' % start)
-        else:
-            strings.append('%i-%i' % (start, end))
-        print ','.join(strings)
-    else:
-        print 'Done (party now)'
-
-
 def get_wise_frames_for_dataset(dataset, r0,r1,d0,d1,
                                 randomize=False, cache=True, dirnm=None):
     fn = '%s-frames.fits' % dataset
@@ -2542,13 +2460,7 @@ def main():
     parser.add_option('--threads', dest='threads', type=int, help='Multiproc',
                       default=None)
     parser.add_option('--threads1', dest='threads1', type=int, default=None,
-                      help='Multithreading during round 1')
-
-    parser.add_option('--todo', dest='todo', action='store_true',
-                      default=False, help='Print and plot fields to-do')
-    parser.add_option('--just-dir', dest='justdir', action='store_true',
-                      default=False, help='With --todo, just check for directory, not image file')
-                      
+                      help='Multithreading during round 1')           
     parser.add_option('-w', dest='wishlist', action='store_true',
                       default=False, help='Print needed frames and exit?')
     parser.add_option('--plots', dest='plots', action='store_true',
@@ -2677,7 +2589,7 @@ def main():
 
     radec = opt.ra is not None and opt.dec is not None
 
-    if len(args) == 0 and arr is None and not (opt.todo or opt.allmd5 or radec or opt.tile or opt.preprocess):
+    if len(args) == 0 and arr is None and not (opt.allmd5 or radec or opt.tile or opt.preprocess):
         print 'No tile(s) specified'
         parser.print_help()
         sys.exit(-1)
@@ -2702,7 +2614,6 @@ def main():
     pmargin = 1.05
     pallsky = False
     plotargs = {}
-    todoargs = {}
 
     if radec:
         dataset = ''
@@ -2774,15 +2685,6 @@ def main():
     ps = PlotSequence(opt.plotprefix, format='%03i')
     if opt.pdf:
         ps.suffixes = ['png','pdf']
-
-    if opt.todo:
-        odirs = [opt.outdir]
-        if opt.outdir2 is not None:
-            odirs.append(opt.outdir2)
-        todo(T, W, H, opt.pixscale, odirs, r0,r1,d0,d1, ps, dataset,
-             margin=pmargin, allsky=pallsky, pargs=plotargs, justdir=opt.justdir,
-             **todoargs)
-        return 0
 
     if not opt.plots:
         ps = None
