@@ -744,8 +744,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                                np.clip(y1, 0, h-1)]
 
         WISE.intfn[wi] = intfn
-        WISE.imagew[wi] = w
-        WISE.imageh[wi] = h
+        WISE.imagew[wi] = wcs.get_width()
+        WISE.imageh[wi] = wcs.get_height()
         WISE.wcs[wi] = wcs
         print 'Image extent:', WISE.imextent[wi,:]
         print 'Coadd extent:', WISE.coextent[wi,:]
