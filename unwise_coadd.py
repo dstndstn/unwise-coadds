@@ -444,7 +444,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
               ps, wishlist, outdir, mp1, mp2, do_cube, plots2,
               frame0, nframes, force, medfilt, maxmem, do_dsky, checkmd5,
               bgmatch, center, minmax, rchi_fraction, do_cube1, epoch,
-              before, after, force_outdir=False, just_image=False, version=None):
+              before, after, force_outdir=False, just_image=False):
     '''
     Create coadd for one tile & band.
     '''
@@ -454,8 +454,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
 
     wisepixscale = 2.75
 
-    if version is None:
-        version = retrieve_git_version()
+    version = retrieve_git_version()
     print '"git describe" version info:', version
 
     if not force_outdir:
