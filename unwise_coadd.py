@@ -108,6 +108,20 @@ def zeropointToScale(zp):
 class Duck():
     pass
 
+class FirstRoundImage():
+    def __init__(self):
+        self.coextent = None
+        self.cosubwcs = None
+        self.ncopix = None
+        self.npatched = None
+        self.rimg = None
+        self.rmask = None
+        self.sky = None
+        self.w = None
+        self.wcs = None
+        self.zp = None
+        self.zpscale = None
+
 def get_coadd_tile_wcs(ra, dec, W=2048, H=2048, pixscale=2.75):
     '''
     Returns a Tan WCS object at the given RA,Dec center, axis aligned, with the
@@ -2083,8 +2097,7 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     del mask
     del unc
 
-    # our return value (quack):
-    rr = Duck()
+    rr = FirstRoundImage()
     # Patch masked pixels so we can interpolate
     rr.npatched = np.count_nonzero(np.logical_not(goodmask))
     print 'Pixels to patch:', rr.npatched
