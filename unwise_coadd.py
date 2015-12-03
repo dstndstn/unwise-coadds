@@ -440,6 +440,79 @@ def cut_to_epoch(WISE, epoch, before, after):
 
     return WISE
 
+def get_extents(wcs, cowcs, copoly, W, H, WISE, wi, ps):
+    h,w = wcs.get_height(), wcs.get_width()
+    r,d = walk_wcs_boundary(wcs, step=2.*w, margin=10)
+    ok,u,v = cowcs.radec2iwc(r, d)
+    poly = np.array(list(reversed(zip(u,v))))
+    #print 'Image IWC polygon:', poly
+    intersects = polygons_intersect(copoly, poly)
+
+    if ps and False:
+        plt.clf()
+        plt.plot(copoly[:,0], copoly[:,1], 'r-')
+        plt.plot(copoly[0,0], copoly[0,1], 'ro')
+        plt.plot(poly[:,0], poly[:,1], 'b-')
+        plt.plot(poly[0,0], poly[0,1], 'bo')
+        cpoly = np.array(clip_polygon(copoly, poly))
+        if len(cpoly) == 0:
+            pass
+        else:
+            print 'cpoly:', cpoly
+            plt.plot(cpoly[:,0], cpoly[:,1], 'm-')
+            plt.plot(cpoly[0,0], cpoly[0,1], 'mo')
+        ps.savefig()
+
+    if not intersects:
+        print 'Image does not intersect target'
+        WISE.use[wi] = False
+        return WISE, False
+
+    cpoly = np.array(clip_polygon(copoly, poly))
+    if len(cpoly) == 0:
+        print 'No overlap between coadd and image polygons'
+        print 'copoly:', copoly
+        print 'poly:', poly
+        print 'cpoly:', cpoly
+        WISE.use[wi] = False
+        return WISE, False
+
+    # Convert the intersected polygon in IWC space into image
+    # pixel bounds.
+    # Coadd extent:
+    xy = np.array([cowcs.iwc2pixelxy(u,v) for u,v in cpoly])
+    xy -= 1
+    x0,y0 = np.floor(xy.min(axis=0)).astype(int)
+    x1,y1 = np.ceil (xy.max(axis=0)).astype(int)
+    WISE.coextent[wi,:] = [np.clip(x0, 0, W-1),
+                           np.clip(x1, 0, W-1),
+                           np.clip(y0, 0, H-1),
+                           np.clip(y1, 0, H-1)]
+
+    # Input image extent:
+    #   There was a bug in the an-ran coadds; all imextents are
+    #   [0,1015,0,1015] as a result.
+    #rd = np.array([cowcs.iwc2radec(u,v) for u,v in poly])
+    # Should be: ('cpoly' rather than 'poly' here)
+    rd = np.array([cowcs.iwc2radec(u,v) for u,v in cpoly])
+    ok,x,y = np.array(wcs.radec2pixelxy(rd[:,0], rd[:,1]))
+    x -= 1
+    y -= 1
+    x0,y0 = [np.floor(v.min(axis=0)).astype(int) for v in [x,y]]
+    x1,y1 = [np.ceil (v.max(axis=0)).astype(int) for v in [x,y]]
+    WISE.imextent[wi,:] = [np.clip(x0, 0, w-1),
+                           np.clip(x1, 0, w-1),
+                           np.clip(y0, 0, h-1),
+                           np.clip(y1, 0, h-1)]
+
+    WISE.imagew[wi] = w
+    WISE.imageh[wi] = h
+    WISE.wcs[wi] = wcs # not clear that this belongs in this subroutine
+    print 'Image extent:', WISE.imextent[wi,:]
+    print 'Coadd extent:', WISE.coextent[wi,:]
+    return WISE, True
+
+
 def one_coadd(ti, band, W, H, pixscale, WISE,
               ps, wishlist, outdir, mp1, mp2, do_cube, plots2,
               frame0, nframes, force, medfilt, maxmem, do_dsky, checkmd5,
@@ -679,83 +752,16 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
             failedfiles.append(intfnx)
             continue
 
-        h,w = wcs.get_height(), wcs.get_width()
-        r,d = walk_wcs_boundary(wcs, step=2.*w, margin=10)
-        ok,u,v = cowcs.radec2iwc(r, d)
-        poly = np.array(list(reversed(zip(u,v))))
-        #print 'Image IWC polygon:', poly
-        intersects = polygons_intersect(copoly, poly)
-
-        if ps and False:
-            plt.clf()
-            plt.plot(copoly[:,0], copoly[:,1], 'r-')
-            plt.plot(copoly[0,0], copoly[0,1], 'ro')
-            plt.plot(poly[:,0], poly[:,1], 'b-')
-            plt.plot(poly[0,0], poly[0,1], 'bo')
-            cpoly = np.array(clip_polygon(copoly, poly))
-            if len(cpoly) == 0:
-                pass
-            else:
-                print 'cpoly:', cpoly
-                plt.plot(cpoly[:,0], cpoly[:,1], 'm-')
-                plt.plot(cpoly[0,0], cpoly[0,1], 'mo')
-            ps.savefig()
-
-        if not intersects:
-            print 'Image does not intersect target'
-            WISE.use[wi] = False
-            continue
-
-        cpoly = np.array(clip_polygon(copoly, poly))
-        if len(cpoly) == 0:
-            print 'No overlap between coadd and image polygons'
-            print 'copoly:', copoly
-            print 'poly:', poly
-            print 'cpoly:', cpoly
-            WISE.use[wi] = False
-            continue
-
-        # Convert the intersected polygon in IWC space into image
-        # pixel bounds.
-        # Coadd extent:
-        xy = np.array([cowcs.iwc2pixelxy(u,v) for u,v in cpoly])
-        xy -= 1
-        x0,y0 = np.floor(xy.min(axis=0)).astype(int)
-        x1,y1 = np.ceil (xy.max(axis=0)).astype(int)
-        WISE.coextent[wi,:] = [np.clip(x0, 0, W-1),
-                               np.clip(x1, 0, W-1),
-                               np.clip(y0, 0, H-1),
-                               np.clip(y1, 0, H-1)]
-
-        # Input image extent:
-        #   There was a bug in the an-ran coadds; all imextents are
-        #   [0,1015,0,1015] as a result.
-        #rd = np.array([cowcs.iwc2radec(u,v) for u,v in poly])
-        # Should be: ('cpoly' rather than 'poly' here)
-        rd = np.array([cowcs.iwc2radec(u,v) for u,v in cpoly])
-        ok,x,y = np.array(wcs.radec2pixelxy(rd[:,0], rd[:,1]))
-        x -= 1
-        y -= 1
-        x0,y0 = [np.floor(v.min(axis=0)).astype(int) for v in [x,y]]
-        x1,y1 = [np.ceil (v.max(axis=0)).astype(int) for v in [x,y]]
-        WISE.imextent[wi,:] = [np.clip(x0, 0, w-1),
-                               np.clip(x1, 0, w-1),
-                               np.clip(y0, 0, h-1),
-                               np.clip(y1, 0, h-1)]
-
-        WISE.intfn[wi] = intfn
-        WISE.imagew[wi] = wcs.get_width()
-        WISE.imageh[wi] = wcs.get_height()
-        WISE.wcs[wi] = wcs
-        print 'Image extent:', WISE.imextent[wi,:]
-        print 'Coadd extent:', WISE.coextent[wi,:]
-
+        # call my new function here !!!!
+        WISE, has_overlap = get_extents(wcs, cowcs, copoly, W, H, WISE, wi, ps)
         # Count total coadd-space bounding-box size -- this x 5 bytes
         # is the memory toll of our round-1 coadds, which is basically
         # the peak memory use.
-        e = WISE.coextent[wi,:]
-        pixinrange += (1+e[1]-e[0]) * (1+e[3]-e[2])
-        print 'Total pixels in coadd space:', pixinrange
+        if has_overlap:
+            WISE.intfn[wi] = intfn
+            e = WISE.coextent[wi,:]
+            pixinrange += (1+e[1]-e[0]) * (1+e[3]-e[2])
+            print 'Total pixels in coadd space:', pixinrange
 
     if len(failedfiles):
         print len(failedfiles), 'failed:'
