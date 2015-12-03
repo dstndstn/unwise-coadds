@@ -752,7 +752,6 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
             failedfiles.append(intfnx)
             continue
 
-        # call my new function here !!!!
         WISE, has_overlap = get_extents(wcs, cowcs, copoly, W, H, WISE, wi, ps)
         # Count total coadd-space bounding-box size -- this x 5 bytes
         # is the memory toll of our round-1 coadds, which is basically
