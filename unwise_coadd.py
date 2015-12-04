@@ -14,6 +14,7 @@ from scipy.ndimage.morphology import binary_dilation
 from scipy.ndimage.measurements import label, center_of_mass
 from zp_lookup import ZPLookUp
 import random
+from warp_l1b_quadrants import WarpMetaParameters
 
 import fitsio
 
@@ -440,6 +441,65 @@ def cut_to_epoch(WISE, epoch, before, after):
 
     return WISE
 
+def get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, wi, ps, quad_num, coextent, imextent, margin=10):
+    # want to calculate coextent-like and imextent-like values for an L1b 
+    # quadrant rather than an entire L1b exposure
+    
+    # assert that quadrant number is one of 1-4 inclusive
+    assert((quad_num == 1) or (quad_num == 2) or (quad_num == 3) or (quad_num == 4))
+
+    par = WarpMetaParameters()
+    xmin = par.get_xmin_quadrant(quad_num, one_indexed=True) - margin
+    xmax = par.get_xmax_quadrant(quad_num, one_indexed=True) + margin
+    ymin = par.get_ymin_quadrant(quad_num, one_indexed=True) - margin
+    ymax = par.get_ymax_quadrant(quad_num, one_indexed=True) + margin
+
+    xcorners = np.array([xmin, xmax, xmax, xmin])
+    ycorners = np.array([ymin, ymin, ymax, ymax])
+    r,d = wcs.pixelxy2radec(xcorners, ycorners)
+
+    ok,u,v = cowcs.radec2iwc(r, d)
+    poly = np.array(list(reversed(zip(u,v))))
+    intersects = polygons_intersect(copoly, poly)
+
+    coextent_q = np.zeros(4, dtype=int)
+    imextent_q = np.zeros(4, dtype=int)
+
+    if not intersects:
+        print 'Quadrant ' + str(quad_num) + ' does not intersect target'
+        return coextent_q, imextent_q
+
+    cpoly = np.array(clip_polygon(copoly, poly))
+    if len(cpoly) == 0:
+        print 'No overlap between coadd and quadrant ' + str(quad_num) + ' polygons'
+        return coextent_q, imextent_q
+
+    # Convert the intersected polygon in IWC space into image
+    # pixel bounds.
+    # Coadd extent:
+    xy = np.array([cowcs.iwc2pixelxy(u,v) for u,v in cpoly])
+    xy -= 1
+    x0,y0 = np.floor(xy.min(axis=0)).astype(int)
+    x1,y1 = np.ceil (xy.max(axis=0)).astype(int)
+    coextent_q = [np.clip(x0, coextent[0], coextent[1]),
+                  np.clip(x1, coextent[0], coextent[1]),
+                  np.clip(y0, coextent[2], coextent[3]),
+                  np.clip(y1, coextent[2], coextent[3])]
+
+    # Input image extent:
+    rd = np.array([cowcs.iwc2radec(u,v) for u,v in cpoly])
+    ok,x,y = np.array(wcs.radec2pixelxy(rd[:,0], rd[:,1]))
+    x -= 1 # now things are 0 indexed ...
+    y -= 1 # now things are 0 indexed ...
+    x0,y0 = [np.floor(v.min(axis=0)).astype(int) for v in [x,y]]
+    x1,y1 = [np.ceil (v.max(axis=0)).astype(int) for v in [x,y]]
+    imextent_q = [np.clip(x0, max(imextent[0], xmin-1+margin), min(imextent[1], xmax-1-margin)),
+                  np.clip(x1, max(imextent[0], xmin-1+margin), min(imextent[1], xmax-1-margin)),
+                  np.clip(y0, max(imextent[2], ymin-1+margin), min(imextent[3], ymax-1-margin)),
+                  np.clip(y1, max(imextent[2], ymin-1+margin), min(imextent[3], ymax-1-margin))]
+
+    return coextent_q, imextent_q
+
 def get_extents(wcs, cowcs, copoly, W, H, WISE, wi, ps):
     h,w = wcs.get_height(), wcs.get_width()
     r,d = walk_wcs_boundary(wcs, step=2.*w, margin=10)
@@ -510,6 +570,21 @@ def get_extents(wcs, cowcs, copoly, W, H, WISE, wi, ps):
     WISE.wcs[wi] = wcs # not clear that this belongs in this subroutine
     print 'Image extent:', WISE.imextent[wi,:]
     print 'Coadd extent:', WISE.coextent[wi,:]
+
+    ### now deal with the quadrants
+    WISE.coextent_q1[wi,:], WISE.imextent_q1[wi,:] = get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, 
+                                                                          wi, ps, 1, WISE.coextent[wi,:],
+                                                                          WISE.imextent[wi,:], margin=10)
+    WISE.coextent_q2[wi,:], WISE.imextent_q2[wi,:] = get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, 
+                                                                          wi, ps, 2, WISE.coextent[wi,:],
+                                                                          WISE.imextent[wi,:], margin=10)
+    WISE.coextent_q3[wi,:], WISE.imextent_q3[wi,:] = get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, 
+                                                                          wi, ps, 3, WISE.coextent[wi,:],
+                                                                          WISE.imextent[wi,:], margin=10)
+    WISE.coextent_q4[wi,:], WISE.imextent_q4[wi,:] = get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, 
+                                                                          wi, ps, 4, WISE.coextent[wi,:],
+                                                                          WISE.imextent[wi,:], margin=10)
+    ###
     return WISE, True
 
 
@@ -672,9 +747,18 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     # *inclusive* coordinates of the bounding-box in the coadd of this
     # image (x0,x1,y0,y1)
     WISE.coextent = np.zeros((len(WISE), 4), int)
+    WISE.coextent_q1 = np.zeros((len(WISE), 4), int)
+    WISE.coextent_q2 = np.zeros((len(WISE), 4), int)
+    WISE.coextent_q3 = np.zeros((len(WISE), 4), int)
+    WISE.coextent_q4 = np.zeros((len(WISE), 4), int)
+
     # *inclusive* coordinates of the bounding-box in the image
     # overlapping coadd
     WISE.imextent = np.zeros((len(WISE), 4), int)
+    WISE.imextent_q1 = np.zeros((len(WISE), 4), int)
+    WISE.imextent_q2 = np.zeros((len(WISE), 4), int)
+    WISE.imextent_q3 = np.zeros((len(WISE), 4), int)
+    WISE.imextent_q4 = np.zeros((len(WISE), 4), int)
 
     WISE.imagew = np.zeros(len(WISE), np.int)
     WISE.imageh = np.zeros(len(WISE), np.int)
