@@ -179,23 +179,24 @@ class WarpMetaParameters:
         # worst goodness-of-fit for a quadrant to be considered recovered
         self.chi2_mean_thresh = 4.5
 
-#                           Q1    Q2   Q3    Q4
+        # these values are zero indexed !!
+        #                   Q1    Q2   Q3    Q4
         self.xmin_list = [ 508,    0,   0,  508]
         self.xmax_list = [1015,  507, 507, 1015]
         self.ymin_list = [ 508,  508,   0,    0]
         self.ymax_list = [1015, 1015, 507,  507]
 
-    def get_xmin_quadrant(self, quad_num):
-        return self.xmin_list[quad_num - 1]
+    def get_xmin_quadrant(self, quad_num, one_indexed=False):
+        return (self.xmin_list[quad_num - 1] + int(one_indexed))
 
-    def get_xmax_quadrant(self, quad_num):
-        return self.xmax_list[quad_num - 1]
+    def get_xmax_quadrant(self, quad_num, one_indexed=False):
+        return (self.xmax_list[quad_num - 1] + int(one_indexed))
 
-    def get_ymin_quadrant(self, quad_num):
-        return self.ymin_list[quad_num - 1]
+    def get_ymin_quadrant(self, quad_num, one_indexed=False):
+        return (self.ymin_list[quad_num - 1] + int(one_indexed))
 
-    def get_ymax_quadrant(self, quad_num):
-        return self.ymax_list[quad_num - 1]
+    def get_ymax_quadrant(self, quad_num, one_indexed=False):
+        return (self.ymax_list[quad_num - 1] + int(one_indexed))
 
 def coords_for_quadrant(quad_num, two_dim=False):
     par = WarpMetaParameters()
