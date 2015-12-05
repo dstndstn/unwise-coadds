@@ -75,6 +75,7 @@ def retrieve_git_version():
     if rtn:
         raise RuntimeError('Failed to get version string (git describe):' + ver + err)
     version = version.strip()
+    print '"git describe" version info:', version
     return version
 
 def tile_to_radec(tileid):
@@ -603,7 +604,6 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     wisepixscale = 2.75
 
     version = retrieve_git_version()
-    print '"git describe" version info:', version # move this statement into retrieve_git_version
 
     if recover_moon:
         print 'will attempt to recover any Moon-contaminated frames ...'
