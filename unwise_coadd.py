@@ -592,7 +592,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
               ps, wishlist, outdir, mp1, mp2, do_cube, plots2,
               frame0, nframes, force, medfilt, maxmem, do_dsky, checkmd5,
               bgmatch, center, minmax, rchi_fraction, do_cube1, epoch,
-              before, after, force_outdir=False, just_image=False):
+              before, after, recover_moon, force_outdir=False, just_image=False):
     '''
     Create coadd for one tile & band.
     '''
@@ -603,7 +603,10 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     wisepixscale = 2.75
 
     version = retrieve_git_version()
-    print '"git describe" version info:', version
+    print '"git describe" version info:', version # move this statement into retrieve_git_version
+
+    if recover_moon:
+        print 'will attempt to recover any Moon-contaminated frames ...'
 
     if not force_outdir:
         outdir = get_dir_for_coadd(outdir, ti.coadd_id)
@@ -2525,16 +2528,6 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
 
     return rimgs, coimg, cow, coppstd, coimgsq, cube
 
-
-def _bounce_one_coadd(A):
-    try:
-        return one_coadd(*A)
-    except:
-        import traceback
-        print 'one_coadd failed:'
-        traceback.print_exc()
-        return -1
-
 def get_wise_frames_for_dataset(dataset, r0,r1,d0,d1,
                                 randomize=False, cache=True, dirnm=None):
     fn = '%s-frames.fits' % dataset
@@ -2667,6 +2660,8 @@ def main():
                       help='Should coadd use MAGZP metadata for zero points?')
     parser.add_option('--compare_moon_all', dest='compare_moon_all', action='store_true', default=False,
                       help='When making Moon cut, determine threshold using all available frames regardless of epoch?')
+    parser.add_option('--recover_moon', dest='recover_moon', action='store_true', default=False,
+                      help='Attempt to recover Moon-contaminated exposures?')
 
     opt,args = parser.parse_args()
 
@@ -2854,7 +2849,7 @@ def main():
                      opt.cube, opt.plots2, opt.frame0, opt.nframes, opt.force,
                      medfilt, opt.maxmem, opt.dsky, opt.md5, opt.bgmatch,
                      opt.center, opt.minmax, opt.rchi_fraction, opt.cube1,
-                     opt.epoch, opt.before, opt.after):
+                     opt.epoch, opt.before, opt.after, opt.recover_moon):
             return -1
         print 'Tile', T.coadd_id[tileid], 'band', band, 'took:', Time()-t0
     return 0
