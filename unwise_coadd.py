@@ -774,7 +774,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     nu = 0
     NU = sum(WISE.use)
     for wi,wise in enumerate(WISE):
-        if not wise.use:
+        if (not wise.use) and (not (wise.moon_rej and recover_moon)):
             continue
         print
         nu += 1
