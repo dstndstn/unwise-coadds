@@ -123,6 +123,17 @@ class FirstRoundImage():
         self.wcs = None
         self.zp = None
         self.zpscale = None
+        # optional
+        self.x_l1b = None
+        self.y_l1b = None
+        self.x_coadd = None
+        self.y_coadd = None
+
+    def clear_xy_l1b(self):
+        self.x_l1b = None
+        self.y_l1b = None
+        self.x_coadd = None
+        self.y_coadd = None
 
 def get_coadd_tile_wcs(ra, dec, W=2048, H=2048, pixscale=2.75):
     '''
@@ -463,7 +474,7 @@ def get_round1_quadrants(WISE, cowcs, zp_lookup_obj):
     for wi, wise in enumerate(WISE):
     # do the usual call to _coadd_one_round1 to get a typical FirstRoundImage
         rr = _coadd_one_round1((wi, N, wise, table, L, ps, band, cowcs, medfilt,
-                                do_check_md5, zp_lookup_obj))
+                                do_check_md5, zp_lookup_obj), store_xy_coords=True)
         rimgs.append(rr)
     # call some function to quadrant-ize this result, outputting four FirstRoundImage objects
     #    maybe this function could even be a method belonging to the FirstRoundImage class ?
@@ -473,7 +484,7 @@ def get_round1_quadrants(WISE, cowcs, zp_lookup_obj):
 #    for wi,wise in enumerate(WISE):
 #        args.append((wi, len(WISE), wise, table, L, ps, band, cowcs, medfilt,
 #                     checkmd5, zp_lookup_obj))
-
+    return rimgs, WISE
 
 
 def get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, wi, ps, quad_num, coextent, imextent, margin=10):
@@ -2147,7 +2158,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
             coadd.comin, coadd.comax, coadd.cominb, coadd.comaxb)
 
 def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
-                       do_check_md5, zp_lookup_obj)):
+                       do_check_md5, zp_lookup_obj), store_xy_coords=False):
     '''
     For multiprocessing, the function called to do round 1 on a single
     input frame.
@@ -2358,6 +2369,11 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     rr.ncopix = len(Yo)
     rr.coextent = wise.coextent
     rr.cosubwcs = cosubwcs
+    if store_xy_coords:
+        rr.x_l1b = Xi
+        rr.y_l1b = Yi
+        rr.x_coadd = Xo
+        rr.y_coadd = Yo
 
     if ps and medfilt and False:
         plt.clf()
