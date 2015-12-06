@@ -128,6 +128,8 @@ class FirstRoundImage():
         self.y_l1b = None
         self.x_coadd = None
         self.y_coadd = None
+        self.wcs_full = None
+        self.cowcs_full = None
 
     def clear_xy_l1b(self):
         self.x_l1b = None
@@ -484,7 +486,7 @@ def get_round1_quadrants(WISE, cowcs, zp_lookup_obj):
 #    for wi,wise in enumerate(WISE):
 #        args.append((wi, len(WISE), wise, table, L, ps, band, cowcs, medfilt,
 #                     checkmd5, zp_lookup_obj))
-    return rimgs, WISE
+    return rimgs
 
 
 def get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, wi, ps, quad_num, coextent, imextent, margin=10):
@@ -2179,6 +2181,7 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
 
     wcs = wise.wcs
     x0,x1,y0,y1 = wise.imextent
+    wcs_full = wcs # going to put this into FirstRoundImage object
     wcs = wcs.get_subimage(int(x0), int(y0), int(1+x1-x0), int(1+y1-y0))
     slc = (slice(y0,y1+1), slice(x0,x1+1))
 
@@ -2369,6 +2372,9 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     rr.ncopix = len(Yo)
     rr.coextent = wise.coextent
     rr.cosubwcs = cosubwcs
+    rr.wcs_full = wcs_full
+    rr.cowcs_full = cowcs
+
     if store_xy_coords:
         rr.x_l1b = Xi
         rr.y_l1b = Yi
