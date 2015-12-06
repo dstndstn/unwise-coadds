@@ -588,10 +588,10 @@ def get_round1_quadrants(WISE, cowcs, zp_lookup_obj):
     # particularly imextent, coextent, imextent_q?, coextent_q?
     # should return a list of FirstRoundImage objects one per **quadrant**
 
-    # WISE assumed to be already trimmed down to relevant rows, probably
-    # good to add some assert statements enforcing that ...
+    # WISE assumed to be already trimmed down to rows for which
+    # per-quadrant FirtRoundImage objects are desired
 
-    rimgs = []
+    quad_rimgs = []
     # for each exposure in the input WISE table
     N = len(WISE)
     table = True # think this is always the case everywhere else ...
@@ -601,17 +601,23 @@ def get_round1_quadrants(WISE, cowcs, zp_lookup_obj):
     medfilt = False # hack
     do_check_md5 = False # hack
 
+    print "Creating per-quadrant FirstRoundImage objects"
     for wi, wise in enumerate(WISE):
         # do the usual call to _coadd_one_round1 to get a typical FirstRoundImage
         rr = _coadd_one_round1((wi, N, wise, table, L, ps, band, cowcs, medfilt,
                                 do_check_md5, zp_lookup_obj), store_xy_coords=True)
-        rimgs.append(rr)
-    # call some function to quadrant-ize this result, outputting four FirstRoundImage objects
-    #    maybe this function could even be a method belonging to the FirstRoundImage class ?
-    # the function should output a four-element list FirstRoundImage objects
-    # this list should be appended to rimgs using list.extend
+        # do *not* want to make an intermediate list of the rr objects, since these
+        # are holding x_l1b, y_l1b, x_coadd, y_coadd coordinate lists, so this would
+        # require a lot of RAM
+        quadrants_this_exp = split_one_round1(rr, wise)
+        if quadrants_this_exp is not None:
+            quad_rimgs.extend(quadrants_this_exp)
+        del rr
 
-    return rimgs
+    if len(quad_rimgs) == 0:
+        return None
+    else:
+        return quad_rimgs
 
 
 def get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, wi, ps, quad_num, coextent, imextent, margin=10):
