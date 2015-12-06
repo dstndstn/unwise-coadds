@@ -111,6 +111,12 @@ def zeropointToScale(zp):
 class Duck():
     pass
 
+class ReferenceImage():
+    def __init__(self, image, unc, n):
+        self.image = image # the reference image itself
+        self.unc = unc # the per-pixel reference image uncertainty
+        self.n = n # the integer coverage, should be from *n-u.fits
+
 class FirstRoundImage():
     def __init__(self, quadrant=-1):
         self.coextent = None
@@ -2138,152 +2144,6 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
         import traceback
         traceback.print_exc()
         sky = 0.
-
-
-    if ps:
-        plt.clf()
-        I = coimg1
-        plo,phi = [np.percentile(I, p) for p in [25,99]]
-        plt.imshow(I, interpolation='nearest', origin='lower', cmap='gray',
-                   vmin=plo, vmax=phi)
-        plt.colorbar()
-        plt.title('Coadd round 1')
-        ps.savefig()
-
-        plt.clf()
-        I = coppstd1
-        plo,phi = [np.percentile(I, p) for p in [25,99]]
-        plt.imshow(I, interpolation='nearest', origin='lower', cmap='gray',
-                   vmin=plo, vmax=phi)
-        plt.colorbar()
-        plt.title('Coadd per-pixel std 1')
-        ps.savefig()
-
-        plt.clf()
-        I = cow1 / np.median([mm.w for mm in masks if mm is not None])
-        plo,phi = I.min(), I.max()
-        plt.imshow(I, interpolation='nearest', origin='lower', cmap='gray',
-                   vmin=plo, vmax=phi)
-        plt.colorbar()
-        plt.title('Coadd weights 1 / median w')
-        ps.savefig()
-
-        # approx!
-        con1 = np.round(I).astype(int)
-
-        plt.clf()
-        I = con
-        plo,phi = I.min(), I.max()
-        plt.imshow(I, interpolation='nearest', origin='lower', cmap='gray',
-                   vmin=plo, vmax=phi)
-        plt.colorbar()
-        plt.title('Coadd round 2: N frames')
-        ps.savefig()
-
-        plt.clf()
-        I = conb
-        plo,phi = I.min(), I.max()
-        plt.imshow(I, interpolation='nearest', origin='lower', cmap='gray',
-                   vmin=plo, vmax=phi)
-        plt.colorbar()
-        plt.title('Coadd round 2: N frames (masked)')
-        ps.savefig()
-
-        plt.clf()
-        I = con1 - con
-        plo,phi = I.min(), I.max()
-        plt.imshow(I, interpolation='nearest', origin='lower', cmap='gray',
-                   vmin=plo, vmax=phi)
-        plt.colorbar()
-        plt.title('Coadd N round 1 - N round 2')
-        ps.savefig()
-
-        plt.clf()
-        I = con1 - conb
-        plo,phi = I.min(), I.max()
-        plt.imshow(I, interpolation='nearest', origin='lower', cmap='gray',
-                   vmin=plo, vmax=phi)
-        plt.colorbar()
-        plt.title('Coadd N round 1 - N round 2 (masked)')
-        ps.savefig()
-
-
-        plt.clf()
-        I = coimg
-        plo,phi = [np.percentile(I, p) for p in [25,99]]
-        plt.imshow(I, interpolation='nearest', origin='lower', cmap='gray',
-                   vmin=plo, vmax=phi)
-        plt.colorbar()
-        plt.title('Coadd round 2')
-        ps.savefig()
-
-        plt.clf()
-        I = coimgb
-        plo,phi = [np.percentile(I, p) for p in [25,99]]
-        plt.imshow(I, interpolation='nearest', origin='lower', cmap='gray',
-                   vmin=plo, vmax=phi)
-        plt.colorbar()
-        plt.title('Coadd round 2 (weighted)')
-        ps.savefig()
-
-
-        imlo,imhi = plo,phi
-
-        if minmax:
-            for I,tt in [(coadd.comin, 'min'), (coadd.comax, 'max'), ((coadd.comin + coadd.comax)/2., 'mean(min,max)'),
-                         (coadd.cominb, 'min (weighted)'), (coadd.comaxb, 'max (weighted)'),
-                         ((coadd.cominb + coadd.comaxb)/2., 'mean(min,max), weighted')]:
-                plt.clf()
-                plt.imshow(I - sky, interpolation='nearest', origin='lower', cmap='gray',
-                           vmin=plo, vmax=phi)
-                plt.colorbar()
-                plt.title('Coadd %s' % tt)
-                ps.savefig()
-
-            plt.clf()
-            plt.imshow(((coimg * con) - (coadd.comin-sky) - (coadd.comax-sky)) / np.maximum(1, con-2),
-                       interpolation='nearest', origin='lower', cmap='gray',
-                       vmin=plo, vmax=phi)
-            plt.colorbar()
-            plt.title('Coadd - min,max')
-            ps.savefig()
-
-            plt.clf()
-            plt.imshow(((coimgb * conb) - (coadd.cominb-sky) - (coadd.comaxb-sky)) / np.maximum(1, conb-2),
-                       interpolation='nearest', origin='lower', cmap='gray',
-                       vmin=plo, vmax=phi)
-            plt.colorbar()
-            plt.title('Coadd - min,max (weighted)')
-            ps.savefig()
-
-        plt.clf()
-        I = coppstd
-        plo,phi = [np.percentile(I, p) for p in [25,99]]
-        plt.imshow(I, interpolation='nearest', origin='lower', cmap='gray',
-                   vmin=plo, vmax=phi)
-        plt.colorbar()
-        plt.title('Coadd round 2 per-pixel std')
-        ps.savefig()
-
-        plt.clf()
-        I = coppstdb
-        plt.imshow(I, interpolation='nearest', origin='lower', cmap='gray',
-                   vmin=plo, vmax=phi)
-        plt.colorbar()
-        plt.title('Coadd round 2 per-pixel std (weighted)')
-        ps.savefig()
-
-        nmax = max(con.max(), conb.max())
-
-        plt.clf()
-        I = coppstd
-        plo,phi = [np.percentile(I, p) for p in [25,99]]
-        plt.imshow(I, interpolation='nearest', origin='lower', cmap='gray',
-                   vmin=plo, vmax=phi)
-        plt.colorbar()
-        plt.title('Coadd round 2 per-pixel std')
-        ps.savefig()
-
 
     return (coimg,  coinvvar,  coppstd,  con,
             coimgb, coinvvarb, coppstdb, conb,
