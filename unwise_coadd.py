@@ -4,6 +4,7 @@ import matplotlib
 if __name__ == '__main__':
     matplotlib.use('Agg')
 import numpy as np
+from copy import deepcopy
 import pylab as plt
 import os
 import sys
@@ -131,7 +132,7 @@ class FirstRoundImage():
         self.wcs_full = None
         self.cowcs_full = None
 
-    def clear_xy_l1b(self):
+    def clear_xy_coords(self):
         self.x_l1b = None
         self.y_l1b = None
         self.x_coadd = None
@@ -454,6 +455,107 @@ def cut_to_epoch(WISE, epoch, before, after):
     # having zero rows after cuts
 
     return WISE
+
+def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None):
+    # helper function for split_one_image_quadrants, to deal with just one of the four
+    # quadrants
+
+    # need to implement: if reference is not None, then fit a warp
+    # reference will be an object holding (at least) reference image, its uncertainty, and its
+    # integer coverage
+
+    # these are (supposed to be) zero indexed coordinates
+    x_l1b_absolute = rimg.x_l1b + wise.imextent[0]
+    y_l1b_absolute = rimg.y_l1b + wise.imextent[2]
+
+    par = WarpMetaParameters()
+
+    xmin = par.get_xmin_quadrant(quad_num)
+    xmax = par.get_xmax_quadrant(quad_num)
+    ymin = par.get_ymin_quadrant(quad_num)
+    ymax = par.get_ymax_quadrant(quad_num)
+    quad_mask = (x_l1b_absolute >= xmin) & (x_l1b_absolute <= xmax) & (y_l1b_absolute >= ymin) & (y_l1b_absolute <= ymax)
+
+    # return None if there's no coverage of quadrant quad_num
+    if np.sum(quad_mask) == 0:
+        print 'Skipping quadrant ' + str(quad_num)
+        return None
+
+    # make sure to delete x_l1b, y_l1b, x_coadd, y_coadd fields once they're no longer needed
+    # fields that need to be filled in
+    #    coextent   -- needs to be updated  XXX
+    #    cosubwcs   -- needs to be updated  XXX
+    #    ncopix     -- needs to be updated  XXX
+    #    npatched   -- needs to be updated  XXX
+    #    rimg       -- needs to be trimmed  XXX
+    #    rmask      -- needs to be trimmed  XXX
+    #    sky        -- change if redo_sky
+    #    w          -- NO CHANGE            XXX
+    #    wcs        -- needs to be updated  XXX
+    #    zp         -- NO CHANGE            XXX
+    #    zpscale    -- NO CHANGE            XXX
+    #    wcs_full   -- NO CHANGE            XXX
+    #    cowcs_full -- NO CHANGE            XXX
+    #    x_l1b      -- DELETE THIS !!       XXX
+    #    y_l1b      -- DELETE THIS !!       XXX
+    #    x_coadd    -- DELETE THIS !!       XXX
+    #    y_coadd    -- DELETE THIS !!       XXX
+
+    rimg_quad = deepcopy(rimg)
+    if quad_num == 1:
+        coextent_q = wise.coextent_q1
+        imextent_q = wise.imextent_q1
+    elif quad_num == 2:
+        coextent_q = wise.coextent_q2
+        imextent_q = wise.imextent_q2
+    elif quad_num == 3:
+        coextent_q = wise.coextent_q3
+        imextent_q = wise.imextent_q3
+    elif quad_num == 4:
+        coextent_q = wise.coextent_q4
+        imextent_q = wise.imextent_q4
+
+    x0_l1b, x1_l1b, y0_l1b, y1_l1b = imextent_q
+    rimg_quad.coextent = coextent_q
+    rimg_quad.wcs = rimg.wcs_full.get_subimage(int(x0_l1b), int(y0_l1b), int(1+x1_l1b-x0_l1b), int(1+y1_l1b-y0_l1b))
+
+    cox0,cox1,coy0,coy1 = coextent_q
+    coW = int(1 + cox1 - cox0)
+    coH = int(1 + coy1 - coy0)
+
+    rimg_quad.cosubwcs = rimg.cowcs_full.get_subimage(int(cox0), int(coy0), coW, coH)
+
+    quad_mask_image = np.zeros(rimg.rimg.shape)
+    quad_mask_image[(rimg.y_coadd)[quad_mask], (rimg.x_coadd)[quad_mask]] = 1
+    
+    quad_rimg = (rimg.rimg)*quad_mask_image
+    quad_rmask = (rimg.rmask)*quad_mask_image
+
+    # need to extract relevant cutouts that become rimg_quad.rimg and rimg_quad.rmask
+    assert((coextent_q[0] >= rimg.coextent[0]) and (coextent_q[1] <= rimg.coextent[1]))
+    assert((coextent_q[2] >= rimg.coextent[2]) and (coextent_q[3] <= rimg.coextent[3]))
+
+    # watch out for fence-posting
+    y_bot = coextent_q[2] - rimg.coextent[2]
+    y_top = y_bot + coextent_q[3] - coextent_q[2] + 1 # fence-posting
+    x_left = coextent_q[0] - rimg.coextent[0]
+    x_right = x_left + coextent_q[1] - coextent_q[0] + 1 # fence-posting
+    quad_rimg = quad_rimg[y_bot:y_top, x_left:x_right]
+    quad_rmask = quad_rmask[y_bot:y_top, x_left:x_right]
+
+    rimg_quad.rimg = quad_rimg
+    rimg_quad.rmask = quad_rmask
+
+    rimg_quad.ncopix = np.sum(rimg_quad.rmask != 0)
+
+    # note that this isn't consistent with definition of 
+    # npatched from _coadd_one_round1 in unwise_coadd.py
+    rimg_quad.npatched = np.sum(rimg_quad.rmask == 1)
+
+    # don't waste memory storing x,y coordinates
+    rimg_quad.clear_xy_coords()
+
+    return rimg_quad
 
 def get_round1_quadrants(WISE, cowcs, zp_lookup_obj):
     # WISE is a table with all the relevant L1b metadata
