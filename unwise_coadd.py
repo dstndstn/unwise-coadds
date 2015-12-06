@@ -112,7 +112,7 @@ class Duck():
     pass
 
 class FirstRoundImage():
-    def __init__(self):
+    def __init__(self, quadrant=-1):
         self.coextent = None
         self.cosubwcs = None
         self.ncopix = None
@@ -124,6 +124,7 @@ class FirstRoundImage():
         self.wcs = None
         self.zp = None
         self.zpscale = None
+        self.quadrant = quadrant
         # optional
         self.x_l1b = None
         self.y_l1b = None
@@ -500,8 +501,11 @@ def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None):
     #    y_l1b      -- DELETE THIS !!       XXX
     #    x_coadd    -- DELETE THIS !!       XXX
     #    y_coadd    -- DELETE THIS !!       XXX
+    #    quadrant   -- needs to be set      XXX
 
     rimg_quad = deepcopy(rimg)
+    rimg_quad.quadrant = quad_num
+
     if quad_num == 1:
         coextent_q = wise.coextent_q1
         imextent_q = wise.imextent_q1
