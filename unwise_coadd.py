@@ -457,6 +457,28 @@ def cut_to_epoch(WISE, epoch, before, after):
 
     return WISE
 
+def split_one_round1(rimg, wise):
+    # split one round1 image into its constituent quadrants
+    # rimg is a round1 image object **that must hold xy coordinates**
+    # wise is corresponding row of WISE metadata table
+
+    if rimg is None:
+        return None
+
+    quadrant_list = []
+    for quad_num in range(1, 5):
+        rimg_quad = split_one_quadrant(rimg, wise, quad_num) # other kw args eventually ...
+        if rimg_quad is not None:
+            quadrant_list.append(rimg_quad)
+
+    # delete the x,y coordinates stored in rimg !!!!
+    rimg.clear_xy_coords()
+
+    if len(quadrant_list) == 0:
+        return None
+    else:
+        return quadrant_list
+
 def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None):
     # helper function for split_one_image_quadrants, to deal with just one of the four
     # quadrants
@@ -580,7 +602,7 @@ def get_round1_quadrants(WISE, cowcs, zp_lookup_obj):
     do_check_md5 = False # hack
 
     for wi, wise in enumerate(WISE):
-    # do the usual call to _coadd_one_round1 to get a typical FirstRoundImage
+        # do the usual call to _coadd_one_round1 to get a typical FirstRoundImage
         rr = _coadd_one_round1((wi, N, wise, table, L, ps, band, cowcs, medfilt,
                                 do_check_md5, zp_lookup_obj), store_xy_coords=True)
         rimgs.append(rr)
@@ -589,9 +611,6 @@ def get_round1_quadrants(WISE, cowcs, zp_lookup_obj):
     # the function should output a four-element list FirstRoundImage objects
     # this list should be appended to rimgs using list.extend
 
-#    for wi,wise in enumerate(WISE):
-#        args.append((wi, len(WISE), wise, table, L, ps, band, cowcs, medfilt,
-#                     checkmd5, zp_lookup_obj))
     return rimgs
 
 
