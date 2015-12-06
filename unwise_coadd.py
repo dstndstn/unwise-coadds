@@ -2049,62 +2049,6 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     gc.collect()
     print 'After garbage collection:', Time()-t0
 
-    if ps:
-        ngood = 0
-        for i,mm in enumerate(masks):
-            if ngood >= 5:
-                break
-            if mm is None or not mm.included:
-                continue
-            if sum(mm.badpix) == 0:
-                continue
-            if mm.ncopix < 0.25 * W*H:
-                continue
-            ngood += 1
-
-            print 'Plotting mm', i
-
-            cim = np.zeros((H,W))
-            cim += 1e6
-            cim[mm.coslc][mm.rmask_orig] = mm.rimg_orig[mm.rmask_orig]
-            w = np.max(mm.cow)
-            sig1 = 1./np.sqrt(w)
-
-            cbadpix = np.zeros((H,W))
-            cbadpix[mm.coslc][mm.con] = mm.badpix[mm.con]
-            blobs,nblobs = label(cbadpix, np.ones((3,3),int))
-            blobcms = center_of_mass(cbadpix, labels=blobs,
-                                     index=range(nblobs+1))
-            plt.clf()
-            plt.imshow(cim, interpolation='nearest', origin='lower',
-                       cmap='gray', vmin=-1.*sig1, vmax=5.*sig1)
-            ax = plt.axis()
-            for y,x in blobcms:
-                plt.plot(x, y, 'o', mec='r', mew=2, mfc='none', ms=15)
-            plt.axis(ax)
-            ps.savefig()
-
-            # cim[mm.coslc][mm.rmask_orig] = (mm.rimg_orig[mm.rmask_orig] -
-            #                                 coimg1[mm.rmask_orig])
-            # plt.clf()
-            # plt.imshow(cim, interpolation='nearest', origin='lower',
-            #            cmap='gray', vmin=-3.*sig1, vmax=3.*sig1)
-            # ps.savefig()
-
-            crchi = np.zeros((H,W))
-            crchi[mm.coslc] = mm.rchi
-            plt.clf()
-            plt.imshow(crchi, interpolation='nearest', origin='lower',
-                       cmap='gray', vmin=-5, vmax=5)
-            ps.savefig()
-
-            cbadpix[:,:] = 0.5
-            cbadpix[mm.coslc][mm.con] = (1 - mm.badpix[mm.con])
-            plt.clf()
-            plt.imshow(cbadpix, interpolation='nearest', origin='lower',
-                       cmap='gray', vmin=0, vmax=1)
-            ps.savefig()
-
     coimg    = coadd.coimg
     coimgsq  = coadd.coimgsq
     cow      = coadd.cow
@@ -2133,6 +2077,14 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     coppstd  /= np.sqrt(np.maximum(1., (con  - 1).astype(float)))
     coppstdb /= np.sqrt(np.maximum(1., (conb - 1).astype(float)))
 
+    coimg, coimgb, sky = subtract_coadd_sky(coimg, coimgb)
+
+    return (coimg,  coinvvar,  coppstd,  con,
+            coimgb, coinvvarb, coppstdb, conb,
+            masks, cube, sky,
+            coadd.comin, coadd.comax, coadd.cominb, coadd.comaxb)
+
+def subtract_coadd_sky(coimg, coimgb):
     # re-estimate and subtract sky from the coadd
     try:
         sky = estimate_mode(coimgb)
@@ -2145,10 +2097,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
         traceback.print_exc()
         sky = 0.
 
-    return (coimg,  coinvvar,  coppstd,  con,
-            coimgb, coinvvarb, coppstdb, conb,
-            masks, cube, sky,
-            coadd.comin, coadd.comax, coadd.cominb, coadd.comaxb)
+    return coimg, coimgb, sky
 
 def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
                        do_check_md5, zp_lookup_obj), store_xy_coords=False):
