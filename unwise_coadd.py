@@ -2042,8 +2042,6 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
             coadd.acc(mm, delmm=delmm)
         print Time()-t0
 
-    coadd.finish()
-
     t0 = Time()
     print 'Before garbage collection:', Time()-t0
     gc.collect()
@@ -2079,6 +2077,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
 
     coimg, coimgb, sky = subtract_coadd_sky(coimg, coimgb)
 
+    coadd.finish()
     return (coimg,  coinvvar,  coppstd,  con,
             coimgb, coinvvarb, coppstdb, conb,
             masks, cube, sky,
