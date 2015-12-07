@@ -2047,6 +2047,17 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     gc.collect()
     print 'After garbage collection:', Time()-t0
 
+    coimg,  coinvvar,  coppstd,  con, coimgb, coinvvarb, coppstdb, conb, cube, sky = extract_round2_outputs(coadd, tinyw)
+
+    coadd.finish()
+    return (coimg,  coinvvar,  coppstd,  con,
+            coimgb, coinvvarb, coppstdb, conb,
+            masks, cube, sky,
+            coadd.comin, coadd.comax, coadd.cominb, coadd.comaxb)
+
+def extract_round2_outputs(coadd, tinyw):
+    # coadd is an object of type coaddacc
+
     coimg    = coadd.coimg
     coimgsq  = coadd.coimgsq
     cow      = coadd.cow
@@ -2077,11 +2088,8 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
 
     coimg, coimgb, sky = subtract_coadd_sky(coimg, coimgb)
 
-    coadd.finish()
-    return (coimg,  coinvvar,  coppstd,  con,
-            coimgb, coinvvarb, coppstdb, conb,
-            masks, cube, sky,
-            coadd.comin, coadd.comax, coadd.cominb, coadd.comaxb)
+    return (coimg,  coinvvar,  coppstd,  con, coimgb, 
+            coinvvarb, coppstdb, conb, cube, sky)
 
 def subtract_coadd_sky(coimg, coimgb):
     # re-estimate and subtract sky from the coadd
