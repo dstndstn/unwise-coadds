@@ -15,7 +15,7 @@ from scipy.ndimage.morphology import binary_dilation
 from scipy.ndimage.measurements import label, center_of_mass
 from zp_lookup import ZPLookUp
 import random
-from warp_l1b_quadrants import WarpMetaParameters
+from warp_utils import WarpMetaParameters
 
 import fitsio
 
