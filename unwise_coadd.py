@@ -1056,6 +1056,12 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     print 'Up to coadd_wise:'
     print t1 - t0
 
+    # construct metadata table of frames we'll try to recover
+    recover = None
+    if recover_moon:
+        if np.sum(WISE.use & WISE.moon_rej) != 0:
+            recover = WISE[WISE.use & (WISE.moon_rej)]
+
     # Now that we've got some information about the input frames, call
     # the real coadding code.  Maybe we should move this first loop into
     # the round 1 coadd...
@@ -1065,7 +1071,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
          )= coadd_wise(ti.coadd_id, cowcs, WISE[WISE.use & (~WISE.moon_rej)], ps, band, mp1, mp2, do_cube,
                        medfilt, plots2=plots2, do_dsky=do_dsky,
                        checkmd5=checkmd5, bgmatch=bgmatch, minmax=minmax,
-                       rchi_fraction=rchi_fraction, do_cube1=do_cube1)
+                       rchi_fraction=rchi_fraction, do_cube1=do_cube1, recover=recover)
     except:
         print 'coadd_wise failed:'
         import traceback
@@ -1732,9 +1738,20 @@ def binimg(img, b):
     return (reduce(np.add, [img[i/b:hh:b, i%b:ww:b] for i in range(b*b)]) /
             float(b*b))
 
+def recover_moon_frames(WISE, coadd):
+    # coadd is a coaddacc object, which should already have accumulated
+    # the Moon-free exposures
+    assert(np.min(WISE.use) == 1)
+    assert(np.min(WISE.moon_rej) == 1)
+    nrec = len(WISE)
+    print 'Attempting to recover ' + str(nrec) + ' Moon-contaminated frames'
+    # call routine to generate per-quadrant list of FirstRoundImages
+    # loop over this list calling coadd_one_round2 
+
 def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                do_cube, medfilt, plots2=False, table=True, do_dsky=False,
-               checkmd5=False, bgmatch=False, minmax=False, rchi_fraction=0.01, do_cube1=False):
+               checkmd5=False, bgmatch=False, minmax=False, rchi_fraction=0.01, do_cube1=False, 
+               recover=None):
     L = 3
     W = cowcs.get_width()
     H = cowcs.get_height()
@@ -2048,6 +2065,10 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     print 'After garbage collection:', Time()-t0
 
     coimg,  coinvvar,  coppstd,  con, coimgb, coinvvarb, coppstdb, conb, cube, sky = extract_round2_outputs(coadd, tinyw)
+
+    if recover is not None:
+        # recover contains Moon-contaminated subset of rows from exposure metadata table
+        recover_moon_frames(recover, coadd)
 
     coadd.finish()
     return (coimg,  coinvvar,  coppstd,  con,
