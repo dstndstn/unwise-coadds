@@ -113,9 +113,21 @@ class Duck():
 
 class ReferenceImage():
     def __init__(self, image, std, n):
+        # these need to be images corresponding to the *entire* reference tile
         self.image = image # the reference image itself
         self.n = n # the integer coverage, should be from *n-u.fits
         self.sigma = std*np.sqrt(n) # 1 sigma error to be used when computing warp chi2 values
+
+    def extract_cutout(self, rimg):
+        # rimg should be the FirstRoundImage object
+        x0_coadd = rimg.coextent[0]
+        x1_coadd = rimg.coextent[1] + 1
+        y0_coadd = rimg.coextent[2]
+        y1_coadd = rimg.coextent[3] + 1
+
+        return (self.image[y0_coadd:y1_coadd, x0_coadd:x1_coadd], 
+                self.n[y0_coadd:y1_coadd, x0_coadd:x1_coadd], 
+                self.sigma[y0_coadd:y1_coadd, x0_coadd:x1_coadd])
 
 class FirstRoundImage():
     def __init__(self, quadrant=-1):
@@ -525,10 +537,10 @@ def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, del
     #    zpscale    -- NO CHANGE            XXX
     #    wcs_full   -- NO CHANGE            XXX
     #    cowcs_full -- NO CHANGE            XXX
-    #    x_l1b      -- needs to be updated
-    #    y_l1b      -- needs to be updated
-    #    x_coadd    -- needs to be updated
-    #    y_coadd    -- needs to be updated
+    #    x_l1b      -- needs to be updated  XXX
+    #    y_l1b      -- needs to be updated  XXX
+    #    x_coadd    -- needs to be updated  XXX
+    #    y_coadd    -- needs to be updated  XXX
     #    quadrant   -- needs to be set      XXX
 
     rimg_quad = deepcopy(rimg)
