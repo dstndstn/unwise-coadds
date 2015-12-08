@@ -129,6 +129,13 @@ class ReferenceImage():
                 self.n[y0_coadd:y1_coadd, x0_coadd:x1_coadd], 
                 self.sigma[y0_coadd:y1_coadd, x0_coadd:x1_coadd])
 
+class QuadrantWarp():
+    def __init__(self, quadrant, coeff, xmed, ymed):
+        self.quadrant = quadrant
+        self.coeff = coeff
+        self.xmed = xmed
+        self.ymed = ymed
+
 class FirstRoundImage():
     def __init__(self, quadrant=-1):
         self.coextent = None
@@ -150,6 +157,7 @@ class FirstRoundImage():
         self.y_coadd = None
         self.wcs_full = None
         self.cowcs_full = None
+        self.warp = None # of type QuadrantWarp
 
     def clear_xy_coords(self):
         self.x_l1b = None
@@ -2120,12 +2128,16 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     gc.collect()
     print 'After garbage collection:', Time()-t0
 
-    coimg,  coinvvar,  coppstd,  con, coimgb, coinvvarb, coppstdb, conb, cube, sky = extract_round2_outputs(coadd, tinyw)
+    coimg,  coinvvar,  coppstd,  con, coimgb, coinvvarb, coppstdb, conb, cube = extract_round2_outputs(coadd, tinyw)
 
     if recover is not None:
         # recover contains Moon-contaminated subset of rows from exposure metadata table
         reference = ReferenceImage(coimg, coppstd, con)
         recover_moon_frames(recover, coadd, reference)
+
+    # think it's best to only do coadd-level sky subtraction
+    # *after* attempting to recover Moon-contaminated frames
+    coimg, coimgb, sky = subtract_coadd_sky(coimg, coimgb)
 
     coadd.finish()
     return (coimg,  coinvvar,  coppstd,  con,
@@ -2164,10 +2176,8 @@ def extract_round2_outputs(coadd, tinyw):
     coppstd  /= np.sqrt(np.maximum(1., (con  - 1).astype(float)))
     coppstdb /= np.sqrt(np.maximum(1., (conb - 1).astype(float)))
 
-    coimg, coimgb, sky = subtract_coadd_sky(coimg, coimgb)
-
     return (coimg,  coinvvar,  coppstd,  con, coimgb, 
-            coinvvarb, coppstdb, conb, cube, sky)
+            coinvvarb, coppstdb, conb, cube)
 
 def subtract_coadd_sky(coimg, coimgb):
     # re-estimate and subtract sky from the coadd
