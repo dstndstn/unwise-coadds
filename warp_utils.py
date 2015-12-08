@@ -1,6 +1,24 @@
 import numpy as np
 import time
 
+def evaluate_warp_poly(coeff, dx, dy):
+    warp_vals = (coeff[0]) + \
+                (coeff[1])*dx + \
+                (coeff[2])*dy  + \
+                (coeff[3])*(dx*dy) + \
+                (coeff[4])*(dx**2) + \
+                (coeff[5])*(dy**2) + \
+                (coeff[6])*(dx**2)*dy + \
+                (coeff[7])*(dy**2)*dx + \
+                (coeff[8])*(dx**3) + \
+                (coeff[9])*(dy**3) + \
+                (coeff[10])*(dx**2)*(dy**2) + \
+                (coeff[11])*(dx**3)*dy + \
+                (coeff[12])*(dy**3)*dx + \
+                (coeff[13])*(dx**4) + \
+                (coeff[14])*(dy**4)
+    return warp_vals
+
 def render_warp(warp):
     # warp input should be an object of type WarpParameters
     # should this function be a method that belongs to the warp object ?
@@ -12,21 +30,7 @@ def render_warp(warp):
     dx = warp.x_l1b_quad - warp.xmed
     dy = warp.y_l1b_quad - warp.ymed
 
-    warp_vals = (warp.coeff[0]) + \
-                (warp.coeff[1])*dx + \
-                (warp.coeff[2])*dy  + \
-                (warp.coeff[3])*(dx*dy) + \
-                (warp.coeff[4])*(dx**2) + \
-                (warp.coeff[5])*(dy**2) + \
-                (warp.coeff[6])*(dx**2)*dy + \
-                (warp.coeff[7])*(dy**2)*dx + \
-                (warp.coeff[8])*(dx**3) + \
-                (warp.coeff[9])*(dy**3) + \
-                (warp.coeff[10])*(dx**2)*(dy**2) + \
-                (warp.coeff[11])*(dx**3)*dy + \
-                (warp.coeff[12])*(dy**3)*dx + \
-                (warp.coeff[13])*(dx**4) + \
-                (warp.coeff[14])*(dy**4)
+    warp_vals = evaluate_warp_poly(warp.coeff, dx, dy)
     warp_image[warp.y_l1b_quad, warp.x_l1b_quad] = warp_vals
 
     # return a 508 x 508 image of the warp
@@ -99,7 +103,7 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref):
     # should chi2_mean_raw be calculated after requiring that
     # reference quadrant and l1b quadrant be made to have matching medians?
     chi2_mean_raw = np.mean(((pix_l1b_quad - pix_ref)/(unc_ref))**2)
-    print chi2_mean, '~~~~~~~'
+    print chi2_mean_raw,  '~~~~~~~', chi2_mean, '~~~~~~~'
 
     return (coeff, xmed, ymed, x_l1b_quad, y_l1b_quad, 
             isgood, chi2_mean, chi2_mean_raw, pred)
