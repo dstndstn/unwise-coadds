@@ -15,7 +15,7 @@ from scipy.ndimage.morphology import binary_dilation
 from scipy.ndimage.measurements import label, center_of_mass
 from zp_lookup import ZPLookUp
 import random
-from warp_utils import WarpMetaParameters
+from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp
 
 import fitsio
 
@@ -125,18 +125,16 @@ class ReferenceImage():
         y0_coadd = rimg.coextent[2]
         y1_coadd = rimg.coextent[3] + 1
 
-        return (self.image[y0_coadd:y1_coadd, x0_coadd:x1_coadd], 
-                self.n[y0_coadd:y1_coadd, x0_coadd:x1_coadd], 
-                self.sigma[y0_coadd:y1_coadd, x0_coadd:x1_coadd])
+        return (self.image[y0_coadd:y1_coadd, x0_coadd:x1_coadd],  
+                self.sigma[y0_coadd:y1_coadd, x0_coadd:x1_coadd],
+                self.n[y0_coadd:y1_coadd, x0_coadd:x1_coadd])
 
 class QuadrantWarp():
-    def __init__(self, quadrant, coeff, xmed, ymed, vals):
-        self.quadrant = quadrant
+    def __init__(self, quadrant, coeff, xmed, ymed):
+        self.quadrant = quadrant # this is an integer ??
         self.coeff = coeff
         self.xmed = xmed
         self.ymed = ymed
-        # actual values of warp image, kind of a temporary hack
-        self.vals = vals
 
 class FirstRoundImage():
     def __init__(self, quadrant=-1):
@@ -607,13 +605,20 @@ def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, del
     # npatched from _coadd_one_round1 in unwise_coadd.py
     rimg_quad.npatched = np.sum(rimg_quad.rmask == 1)
 
-
     rimg_quad.x_l1b = x_l1b_absolute[quad_mask] # for full exposure .x_l1b, .y_l1b were NOT absolute
     rimg_quad.y_l1b = y_l1b_absolute[quad_mask] # for full exposure .x_l1b, .y_l1b were NOT absolute
     rimg_quad.x_coadd = rimg.x_coadd[quad_mask] - x_left
     rimg_quad.y_coadd = rimg.y_coadd[quad_mask] - y_bot
 
+    assert(len(rimg_quad.x_l1b) == np.sum(rimg_quad.rmask != 0))
+
     # if reference is not None, call the warping code here !!
+    if reference is not None:
+        warp = do_one_warp(rimg_quad, wise, reference)
+
+        if warp is not None:
+#            modify rimg_quad.rimg by subtracting the warp image
+             rimg_quad.warp = warp
 
     # clear some space in memory if x,y coords no longer needed
     if delete_xy_coords:
@@ -1776,26 +1781,39 @@ def do_one_warp(rimg, wise, reference):
     # succeeded or failed
     assert(rimg.quadrant != -1)
 
-    # think it makes sense to have the return value be 
-    # None if unsuccessful, and be a modified version of rimg if 
-    # warping was successful
+    # return value should be None if unsuccessful, and a WarpQuadrant
+    # object if successful
 
     # the warp can either fail because of insufficient 
     # number of pixels to fit warp or because chi2 value
     # of best fit warp isn't good enough
 
-    # decide which pix to exclude based on rimg.rmask
-    # call mask_extreme_pix
-    # call compute_warp, think pred is output i want but not sure ??
+    npix_good = np.sum(rimg.rmask == 3) # check that 3 is right value
+    # tune this threshold later
+    if npix_good < 45000:
+        print 'Too few pixels :  ' + str(npix_good) + ', not computing warp'
+        return None
 
-    #pix_l1b_quad = 
-    #pix_ref = 
-    #x_l1b_quad = 
-    #y_l1b_quad = 
-    #unc_ref = 
+    non_extreme_mask = mask_extreme_pix(rimg.rimg, ignore=(rimg.rmask != 3))
 
+    imref, sigref, nref = reference.extract_cutout(rimg)
+
+    pix_l1b_quad = rimg.rimg[non_extreme_mask]
+    pix_ref = imref[non_extreme_mask]
+    unc_ref = sigref[non_extreme_mask]
+
+    x_l1b_im = np.zeros(rimg.rimg.shape)
+    y_l1b_im = np.zeros(rimg.rimg.shape)
+
+    x_l1b_im[rimg.y_coadd, rimg.x_coadd] = rimg.x_l1b
+    y_l1b_im[rimg.y_coadd, rimg.x_coadd] = rimg.y_l1b
+
+    # fix the fact that x_l1b_quad is both an input and output here ...
     coeff, xmed, ymed, x_l1b_quad, y_l1b_quad, isgood, chi2_mean, chi2_mean_raw, pred = compute_warp(pix_l1b_quad, pix_ref, 
-                                                                                                     x_l1b_quad, y_l1b_quad, unc_ref)
+                                                                                                     x_l1b_im[non_extreme_mask], 
+                                                                                                     y_l1b_im[non_extreme_mask], unc_ref)
+    warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed)
+    return warp
 
 def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj):
     # coadd is a coaddacc object, which should already have accumulated
