@@ -130,11 +130,13 @@ class ReferenceImage():
                 self.n[y0_coadd:y1_coadd, x0_coadd:x1_coadd])
 
 class QuadrantWarp():
-    def __init__(self, quadrant, coeff, xmed, ymed):
+    def __init__(self, quadrant, coeff, xmed, ymed, chi2mean, chi2mean_raw):
         self.quadrant = quadrant # this is an integer ??
         self.coeff = coeff
         self.xmed = xmed
         self.ymed = ymed
+        self.chi2mean = chi2mean
+        self.chi2mean_raw = chi2mean_raw
 
 class FirstRoundImage():
     def __init__(self, quadrant=-1):
@@ -1794,9 +1796,11 @@ def do_one_warp(rimg, wise, reference):
         print 'Too few pixels :  ' + str(npix_good) + ', not computing warp'
         return None
 
-    non_extreme_mask = mask_extreme_pix(rimg.rimg, ignore=(rimg.rmask != 3))
-
     imref, sigref, nref = reference.extract_cutout(rimg)
+
+    # assert that imref has same shape as rimg.rimg
+    assert((rimg.rimg.shape[0] ==  imref.shape[0]) and (rimg.rimg.shape[1] == imref.shape[1]))
+    non_extreme_mask = mask_extreme_pix(imref, ignore=(rimg.rmask != 3))
 
     pix_l1b_quad = rimg.rimg[non_extreme_mask]
     pix_ref = imref[non_extreme_mask]
@@ -1812,7 +1816,7 @@ def do_one_warp(rimg, wise, reference):
     coeff, xmed, ymed, x_l1b_quad, y_l1b_quad, isgood, chi2_mean, chi2_mean_raw, pred = compute_warp(pix_l1b_quad, pix_ref, 
                                                                                                      x_l1b_im[non_extreme_mask], 
                                                                                                      y_l1b_im[non_extreme_mask], unc_ref)
-    warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed)
+    warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed, chi2_mean, chi2_mean_raw)
     return warp
 
 def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj):
