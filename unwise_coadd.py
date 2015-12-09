@@ -1128,6 +1128,9 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     # contributed), fill in the image from the "unmasked" image.
     # Leave the invvar image untouched.
     coimb[coivb == 0] = coim[coivb == 0]
+    if np.sum(con == 0):
+        coim[con == 0] = 0
+        coimb[con == 0] = 0
 
     # Plug the WCS header cards into the output coadd files.
     f,wcsfn = tempfile.mkstemp()
@@ -2170,7 +2173,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
 
     # think it's best to only do coadd-level sky subtraction
     # *after* attempting to recover Moon-contaminated frames
-    coimg, coimgb, sky = subtract_coadd_sky(coimg, coimgb)
+    coimg, coimgb, sky = subtract_coadd_sky(coimg, coimgb, con)
 
     coadd.finish()
     return (coimg,  coinvvar,  coppstd,  con,
@@ -2212,10 +2215,10 @@ def extract_round2_outputs(coadd, tinyw):
     return (coimg,  coinvvar,  coppstd,  con, coimgb, 
             coinvvarb, coppstdb, conb, cube)
 
-def subtract_coadd_sky(coimg, coimgb):
+def subtract_coadd_sky(coimg, coimgb, con):
     # re-estimate and subtract sky from the coadd
     try:
-        sky = estimate_mode(coimgb)
+        sky = estimate_mode(coimgb[con != 0]) # ignore zero coverage regions
         print 'Estimated coadd sky:', sky
         coimg  -= sky
         coimgb -= sky
