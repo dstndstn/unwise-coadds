@@ -82,24 +82,15 @@ def plot_quadrant_results(nmax=20, moon_rej=True):
             print 'warp was computed !!!!!!!!!!!!!!!!!!!!!!'
         plt.figure(figsize=(16,10))
    
-        plt.subplot(2,4,1)
+        plt.subplot(2,4,2)
         plt.imshow(rimg_quad.rimg, vmin=-10, vmax=40, interpolation='nearest', 
                    origin='lower', cmap='gray')
         plt.title('L1b quadrant', fontsize=8)
-
-        plt.subplot(2,4,2)
-        plt.imshow(rimg_quad.rmask != 0, vmin=0, vmax=1,
-                   interpolation='nearest', origin='lower', cmap='gray')
-        plt.title('rmask != 0', fontsize=8)
 
         rmask_reconstructed = np.zeros(rimg_quad.rimg.shape)
         rmask_reconstructed[rimg_quad.y_coadd, rimg_quad.x_coadd] = 1
 
         assert(np.sum(rmask_reconstructed != (rimg_quad.rmask != 0)) == 0)
-        plt.subplot(2,4,3)
-        plt.imshow(rmask_reconstructed != 0, vmin=0, vmax=1,
-                   interpolation='nearest', origin='lower', cmap='gray')
-        plt.title('mask reconstructed from coadd x,y coords', fontsize=8)
 
         x_l1b_im = np.zeros(rimg_quad.rimg.shape)
         y_l1b_im = np.zeros(rimg_quad.rimg.shape)
@@ -107,18 +98,8 @@ def plot_quadrant_results(nmax=20, moon_rej=True):
         x_l1b_im[rimg_quad.y_coadd, rimg_quad.x_coadd] = rimg_quad.x_l1b
         y_l1b_im[rimg_quad.y_coadd, rimg_quad.x_coadd] = rimg_quad.y_l1b
 
-        plt.subplot(2,4,4)
-        plt.imshow(x_l1b_im, cmap='gray', interpolation='nearest',
-                   origin='lower')
-        plt.title('L1b x', fontsize=8)
 
-        plt.subplot(2,4,5)
-        plt.imshow(y_l1b_im, cmap='gray', interpolation='nearest',
-                   origin='lower', vmin=np.min(rimg_quad.y_l1b),
-                   vmax=np.max(rimg_quad.y_l1b))
-        plt.title('L1b y', fontsize=8)
-
-        plt.subplot(2,4,6)
+        plt.subplot(2,4,1)
         imref, _, __ = reference.extract_cutout(rimg_quad)
         plt.imshow(imref*(rimg_quad.rmask != 0), cmap='gray', 
                    interpolation='nearest',
@@ -131,10 +112,34 @@ def plot_quadrant_results(nmax=20, moon_rej=True):
             warp_image = evaluate_warp_poly(warp.coeff, dx, dy)
             #warp_image = np.zeros(rimg_quad.rimg.shape)
             warp_image *= (rimg_quad.rmask != 0)
-            plt.subplot(2,4,7)
+            plt.subplot(2,4,3)
             plt.imshow(warp_image, cmap='gray', interpolation='nearest',
                        origin='lower', vmin=-10, vmax=40)
             plt.title("{:.4f}".format(warp.chi2mean_raw) + " , " + "{:.4f}".format(warp.chi2mean), fontsize=8)
+
+            # now construct/plot the warp-corrected quadrant
+            corr = rimg_quad.rimg - warp_image
+            plt.subplot(2,4,4)
+            plt.imshow(corr, cmap='gray', interpolation='nearest', origin='lower', vmin=-10, vmax=40)
+        if False:
+            plt.subplot(2,4,7)
+            plt.imshow(rmask_reconstructed != 0, vmin=0, vmax=1,
+                   interpolation='nearest', origin='lower', cmap='gray')
+            plt.title('mask reconstructed from coadd x,y coords', fontsize=8)
+            plt.subplot(2,4,8)
+            plt.imshow(x_l1b_im, cmap='gray', interpolation='nearest',
+                       origin='lower')
+            plt.title('L1b x', fontsize=8)
+
+            plt.subplot(2,4,5)
+            plt.imshow(y_l1b_im, cmap='gray', interpolation='nearest',
+                       origin='lower', vmin=np.min(rimg_quad.y_l1b),
+                       vmax=np.max(rimg_quad.y_l1b))
+            plt.title('L1b y', fontsize=8)
+            plt.subplot(2,4,6)
+            plt.imshow(rimg_quad.rmask != 0, vmin=0, vmax=1,
+                       interpolation='nearest', origin='lower', cmap='gray')
+            plt.title('rmask != 0', fontsize=8)
 
         plt.show()
         #plt.clf()

@@ -141,7 +141,7 @@ class WarpMetaParameters:
         self.warp_order = 4 # order of per-quadrant polynomial correction
 
         # worst goodness-of-fit for a quadrant to be considered recovered
-        self.chi2_mean_thresh = 4.5
+        self.chi2_mean_thresh = 2.5
 
         # these values are zero indexed !!
         #                   Q1    Q2   Q3    Q4
