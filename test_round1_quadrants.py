@@ -21,9 +21,7 @@ def add_wcs_column(WISE):
         WISE.wcs[i] = Sip(WISE.intfn[i])
     return WISE
 
-def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None):
-    band = 1
-
+def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None, band=1):
 # choose a name for file from which WISE will be read
     tabname = '/global/cscratch1/sd/ameisner/unwise_test_tiles/foo20/e0_moon/343/3433p000/unwise-3433p000-w'+str(band)+'-frames.fits'
 
@@ -58,6 +56,7 @@ def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None):
 
 def create_reference(band=1):
     coaddname = '/global/cscratch1/sd/ameisner/unwise-coadds/fulldepth_zp/343/3433p000/unwise-3433p000-w'+str(band)+'-img-u.fits'
+    print 'reading reference tile : ' + coaddname + ' ~~~~~~~~~~~~~~~~~~~~~~'
     imref = fitsio.read(coaddname)
     nref = fitsio.read(coaddname.replace('img', 'n'))
     stdref = fitsio.read(coaddname.replace('img', 'std'))
@@ -65,10 +64,10 @@ def create_reference(band=1):
     ref = ReferenceImage(imref, stdref, nref)
     return ref
 
-def plot_quadrant_results(nmax=20, moon_rej=True):
-    reference = create_reference()
+def plot_quadrant_results(nmax=20, moon_rej=True, band=1):
+    reference = create_reference(band=band)
     rimgs_quad, WISE = assemble_quadrant_objects(nmax=nmax, moon_rej=moon_rej, 
-                                                 reference=reference)
+                                                 reference=reference, band=band)
 
     for rimg_quad in rimgs_quad:
         print '--------------------------------------'
@@ -131,8 +130,8 @@ def plot_quadrant_results(nmax=20, moon_rej=True):
             plt.imshow(rimg_quad.rimg*warp.non_extreme_mask, vmin=-10, vmax=40, origin='lower', interpolation='nearest', cmap='gray')
 
             # non-extreme vs. extreme reference image pixel mask
-            plt.subplot(2,4,7)
-            plt.imshow(warp.non_extreme_mask, vmin=0, vmax=1, origin='lower', interpolation='nearest', cmap='gray')
+            #plt.subplot(2,4,7)
+            #plt.imshow(warp.non_extreme_mask, vmin=0, vmax=1, origin='lower', interpolation='nearest', cmap='gray')
 
         if False:
             plt.subplot(2,4,7)

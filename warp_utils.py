@@ -134,14 +134,15 @@ def mask_extreme_pix(image, ignore=None):
 
 class WarpMetaParameters:
     # object holding various special numbers
-    def __init__(self):
+    def __init__(self, band=1):
         self.npix_min = 86000 # roughly one third of L1b quadrant
         self.sidelen_quad = 508 # this is wrong for W4 ...
         self.l1b_sidelen = 1016 # this is wrong for W4 ...
         self.warp_order = 4 # order of per-quadrant polynomial correction
+        self.band = band
 
         # worst goodness-of-fit for a quadrant to be considered recovered
-        self.chi2_mean_thresh = 2.5
+        self.chi2_mean_thresh = (2.5 if (band == 1) else 3.25)
 
         # these values are zero indexed !!
         #                   Q1    Q2   Q3    Q4
