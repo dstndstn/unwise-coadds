@@ -121,6 +121,19 @@ def plot_quadrant_results(nmax=20, moon_rej=True):
             corr = rimg_quad.rimg - warp_image
             plt.subplot(2,4,4)
             plt.imshow(corr, cmap='gray', interpolation='nearest', origin='lower', vmin=-10, vmax=40)
+
+            # masked reference image
+            plt.subplot(2,4,5)
+            plt.imshow(imref*warp.non_extreme_mask, vmin=-10, vmax=40, origin='lower', interpolation='nearest', cmap='gray')
+
+            # masked quadrant image
+            plt.subplot(2,4,6)
+            plt.imshow(rimg_quad.rimg*warp.non_extreme_mask, vmin=-10, vmax=40, origin='lower', interpolation='nearest', cmap='gray')
+
+            # non-extreme vs. extreme reference image pixel mask
+            plt.subplot(2,4,7)
+            plt.imshow(warp.non_extreme_mask, vmin=0, vmax=1, origin='lower', interpolation='nearest', cmap='gray')
+
         if False:
             plt.subplot(2,4,7)
             plt.imshow(rmask_reconstructed != 0, vmin=0, vmax=1,

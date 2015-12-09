@@ -137,6 +137,7 @@ class QuadrantWarp():
         self.ymed = ymed
         self.chi2mean = chi2mean
         self.chi2mean_raw = chi2mean_raw
+        self.non_extreme_mask = None # this is intended for debugging only
 
 class FirstRoundImage():
     def __init__(self, quadrant=-1):
@@ -1820,6 +1821,7 @@ def do_one_warp(rimg, wise, reference):
                                                                                                      x_l1b_im[non_extreme_mask], 
                                                                                                      y_l1b_im[non_extreme_mask], unc_ref)
     warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed, chi2_mean, chi2_mean_raw)
+    warp.non_extreme_mask = non_extreme_mask
     return warp
 
 def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj):
