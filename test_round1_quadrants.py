@@ -40,6 +40,8 @@ def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None, band=1):
     WISE = fits_table(tabname)
     if moon_rej:
         WISE = WISE[WISE.moon_rej == True]
+    else:
+        WISE = WISE[WISE.moon_rej == False]
     print WISE.intfn
     print WISE.use
     WISE.cut(WISE.use == 1)
@@ -166,3 +168,40 @@ def plot_quadrant_results(nmax=20, moon_rej=True, band=1):
         # 7) image of masked reference
         # 8) rendering of the polynomial warp
         # 9) image of warp-subtracted quadrant
+
+def recovery_stats(nmax=20, moon_rej=True, band=1, plot=False):
+    # loop over quadrants, computing warps and then 
+    # computing basic statistics of how many pixels/quadrants were/weren't recovered
+
+    reference = create_reference(band=band)
+    rimgs_quad, WISE = assemble_quadrant_objects(nmax=nmax, moon_rej=moon_rej, 
+                                                 reference=reference, band=band)
+
+    n_attempted = 0 # number of quadrants for which warping was attempted
+    n_success = 0 # number of quadrants for which warping succeeded
+    n_fail = 0 # number of quadrants for which warping was attempted but failed
+    n_skipped = 0 # number of quadrants for which warping wasn't even attempted
+    ntot = len(rimgs_quad)
+
+    par = WarpMetaParameters(band=band)
+    chi2mean_vals = []
+    for rimg_quad in rimgs_quad:
+        if rimg_quad.warp is None:
+            n_skipped += 1
+        else:
+            n_attempted += 1
+            chi2mean_vals.append(rimg_quad.warp.chi2mean)
+            success = (rimg_quad.warp.chi2mean < par.chi2_mean_thresh)
+            if success:
+                n_success += 1
+            else:
+                n_fail += 1
+    print str(par.chi2_mean_thresh) + ' @@@@@@@@@@@@@@@@@@@'
+    assert(ntot == (n_attempted+n_skipped))
+    assert(n_attempted == (n_success + n_fail))
+    if plot:
+        plt.hist(np.array(chi2mean_vals), histtype='step', bins=np.arange(0,15,0.2))
+        plt.plot([par.chi2_mean_thresh, par.chi2_mean_thresh],[0,10], c='r')
+        plt.show()
+
+    return (ntot, n_attempted, n_success, n_fail, n_skipped, chi2mean_vals)
