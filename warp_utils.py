@@ -75,7 +75,7 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
     # pix_l1b_quad and pix_ref should be flattened, no need to have them  
     # actually be 2D images here
 
-    assert(order <= 4)
+    assert((order >= 0) and (order <= 4))
 
     diff = pix_l1b_quad - pix_ref
     npix = len(diff)
@@ -83,37 +83,32 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
     xmed = np.median(x_l1b_quad)
     ymed = np.median(y_l1b_quad)
 
-    dx = x_l1b_quad - xmed
-    dy = y_l1b_quad - ymed
+    if order > 0:
+        dx = x_l1b_quad - xmed
+        dy = y_l1b_quad - ymed
 
-    print xmed
-    print ymed
+        X = poly_design_matrix(dx, dy, order)
 
-    X = poly_design_matrix(dx, dy, order)
+        t0 = time.time()
+        coeff, __, ___, ____ = np.linalg.lstsq(X, diff)
+        print (time.time()-t0)
 
-    t0 = time.time()
-    coeff, __, ___, ____ = np.linalg.lstsq(X, diff)
-    dt = time.time()-t0
-    print dt
+        pred = np.dot(X, coeff)
+        resid = (diff - pred)
 
-    pred = np.dot(X, coeff)
-    resid = (diff - pred)
+        # try to mimic hogg_iter_linfit
+        sig_thresh = 3.
+        ms  = np.mean(resid**2)
+        isgood = ((resid**2) < (sig_thresh**2)*ms)
 
-    # try to mimic hogg_iter_linfit
-    sig_thresh = 3.
-    ms  = np.mean(resid**2)
-    isgood = ((resid**2) < (sig_thresh**2)*ms)
-
-    # redo the fit with outliers removed
-    coeff, __, ___, ____ = np.linalg.lstsq(X[isgood], diff[isgood])
+        # redo the fit with outliers removed
+        coeff, __, ___, ____ = np.linalg.lstsq(X[isgood], diff[isgood])
+        pred = np.dot(X, coeff)
 
     print coeff, len(coeff) , ' !!!!!!!!!!!'
 
-    #print np.min(pred), np.max(pred)
-
     # calculate the mean chi-squared
     # i think the mean chi-squared should be calculated including *all* pixels
-    pred = np.dot(X, coeff)
     resid = (diff - pred)
     chi2_image = (resid/unc_ref)**2
     chi2_mean = np.mean(chi2_image)
