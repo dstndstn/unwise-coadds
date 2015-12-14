@@ -130,7 +130,7 @@ class ReferenceImage():
                 self.n[y0_coadd:y1_coadd, x0_coadd:x1_coadd])
 
 class QuadrantWarp():
-    def __init__(self, quadrant, coeff, xmed, ymed, chi2mean, chi2mean_raw):
+    def __init__(self, quadrant, coeff, xmed, ymed, chi2mean, chi2mean_raw, order):
         self.quadrant = quadrant # this is an integer ??
         self.coeff = coeff
         self.xmed = xmed
@@ -138,6 +138,7 @@ class QuadrantWarp():
         self.chi2mean = chi2mean
         self.chi2mean_raw = chi2mean_raw
         self.non_extreme_mask = None # this is intended for debugging only
+        self.order = order
 
 class FirstRoundImage():
     def __init__(self, quadrant=-1):
@@ -1820,7 +1821,8 @@ def do_one_warp(rimg, wise, reference):
     coeff, xmed, ymed, x_l1b_quad, y_l1b_quad, isgood, chi2_mean, chi2_mean_raw, pred = compute_warp(pix_l1b_quad, pix_ref, 
                                                                                                      x_l1b_im[non_extreme_mask], 
                                                                                                      y_l1b_im[non_extreme_mask], unc_ref)
-    warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed, chi2_mean, chi2_mean_raw)
+    order = 4 # this is a hack but will fully implement flexibility in polynomial order soon
+    warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed, chi2_mean, chi2_mean_raw, order)
     warp.non_extreme_mask = non_extreme_mask
     return warp
 

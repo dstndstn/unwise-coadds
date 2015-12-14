@@ -162,3 +162,21 @@ class WarpMetaParameters:
 
     def get_ymax_quadrant(self, quad_num, one_indexed=False):
         return (self.ymax_list[quad_num - 1] + int(one_indexed))
+
+    def npix2order(self, npix):
+        # convert from number of pixels to appropriate warp polynomial order
+        assert(npix <= (self.sidelen_quad**2))
+        assert(npix >= 0)
+
+        if (npix >= 45000):
+            return 4
+        elif (npix >= 20000):
+            return 3
+        elif (npix >= 13000):
+            return 2
+        elif (npix >= 5000):
+            return 1
+        elif (npix >= 50):
+            return 0
+        else:
+            return None
