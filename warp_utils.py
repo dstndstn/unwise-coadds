@@ -37,9 +37,45 @@ def render_warp(warp):
     return warp_image
 
 
-def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref):
+def poly_design_matrix(dx, dy, order):
+    assert((order >= 1) and (order <= 4))
+
+    npix = len(dx)
+    # construct X through first order
+    X = np.column_stack( (np.ones(npix), 
+                          dx, 
+                          dy) )
+    # if order > 1 construct and column stack the second order terms
+    if (order > 1):
+        X = np.column_stack( (X,
+                              dx*dy,
+                              dx**2, 
+                              dy**2) )
+
+    # if order > 2 construct and column stack the third order terms
+    if (order > 2):
+        X = np.column_stack( (X,
+                              (dx**2)*dy,
+                              (dy**2)*dx,
+                              dx**3,
+                              dy**3) )
+
+    # if order > 3 construct and column stack the fourth order terms
+    if (order > 3):
+        X = np.column_stack( (X,
+                              (dx**2)*(dy**2), 
+                              (dx**3)*dy,
+                              (dy**3)*dx,
+                              dx**4,
+                              dy**4) )
+    return X
+
+def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
+                 order=4):
     # pix_l1b_quad and pix_ref should be flattened, no need to have them  
     # actually be 2D images here
+
+    assert(order <= 4)
 
     diff = pix_l1b_quad - pix_ref
     npix = len(diff)
@@ -53,25 +89,7 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref):
     print xmed
     print ymed
 
-    t0 = time.time()
-    X = np.column_stack( (np.ones(npix), 
-                          dx, 
-                          dy, 
-                          dx*dy,
-                          dx**2, 
-                          dy**2, 
-                          (dx**2)*dy,
-                          (dy**2)*dx,
-                          dx**3,
-                          dy**3,
-                          (dx**2)*(dy**2), 
-                          (dx**3)*dy,
-                          (dy**3)*dx,
-                          dx**4,
-                          dy**4) )
-
-    dt = time.time()-t0
-    print dt
+    X = poly_design_matrix(dx, dy, order)
 
     t0 = time.time()
     coeff, __, ___, ____ = np.linalg.lstsq(X, diff)
