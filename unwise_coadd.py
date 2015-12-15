@@ -130,7 +130,7 @@ class ReferenceImage():
                 self.n[y0_coadd:y1_coadd, x0_coadd:x1_coadd])
 
 class QuadrantWarp():
-    def __init__(self, quadrant, coeff, xmed, ymed, chi2mean, chi2mean_raw, order):
+    def __init__(self, quadrant, coeff, xmed, ymed, chi2mean, chi2mean_raw, order, non_extreme_mask):
         self.quadrant = quadrant # this is an integer ??
         self.coeff = coeff
         self.xmed = xmed
@@ -139,6 +139,7 @@ class QuadrantWarp():
         self.chi2mean_raw = chi2mean_raw
         self.non_extreme_mask = None # this is intended for debugging only
         self.order = order
+        self.non_extreme_mask = non_extreme_mask
 
 class FirstRoundImage():
     def __init__(self, quadrant=-1):
@@ -1807,7 +1808,9 @@ def do_one_warp(rimg, wise, reference):
 
     # assert that imref has same shape as rimg.rimg
     assert((rimg.rimg.shape[0] ==  imref.shape[0]) and (rimg.rimg.shape[1] == imref.shape[1]))
-    non_extreme_mask = mask_extreme_pix(imref, ignore=(rimg.rmask != 3))
+    # always want to ignore pixels with (rmask != 3) or with zero coverage in terms of -n-u
+    # the latter should happen exceptionally rarely or never ...
+    non_extreme_mask = mask_extreme_pix(imref, ignore=((rimg.rmask != 3) | (nref == 0)))
 
     pix_l1b_quad = rimg.rimg[non_extreme_mask]
     pix_ref = imref[non_extreme_mask]
@@ -1824,8 +1827,7 @@ def do_one_warp(rimg, wise, reference):
                                                                                                      x_l1b_im[non_extreme_mask], 
                                                                                                      y_l1b_im[non_extreme_mask], unc_ref, 
                                                                                                      order=order)
-    warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed, chi2_mean, chi2_mean_raw, order)
-    warp.non_extreme_mask = non_extreme_mask
+    warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed, chi2_mean, chi2_mean_raw, order, non_extreme_mask)
     return warp
 
 def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj):
