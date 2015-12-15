@@ -143,7 +143,7 @@ def render_warp(rimg_quad):
 
     return warp_image
 
-def apply_warp(rimg_quad):
+def apply_warp(rimg_quad, save_raw=True):
     # input is a FirstRoundImage object -- a modified version of this
     # object will be returned
     
@@ -153,16 +153,21 @@ def apply_warp(rimg_quad):
     if rimg_quad.warp is None:
         return rimg_quad
 
-    # set rimg_quad.rimg_bak to value of rimg_quad.rimg
-    rimg_quad.rimg_bak = rimg_quad.rimg
+    # save uncorrected image to rimg_bak
+    rimg_bak = rimg_quad.rimg
     # call render_warp to get the warp image
     warp_image = render_warp(rimg_quad)
     # subtract the warp image from rimg_quad.rimg
     rimg_quad.rimg = (rimg_quad.rimg - warp_image)
     rimg_quad.warped = True
 
-    assert(np.sum(rimg_quad.rimg != rimg_quad.rimg_bak) != 0)
-    assert(np.sum(rimg_quad.rimg != 0) == np.sum(rimg_quad.rimg_bak != 0))
+    assert(np.sum(rimg_quad.rimg != rimg_bak) != 0)
+    assert(np.sum(rimg_quad.rimg != 0) == np.sum(rimg_bak != 0))
+
+    # save_raw=False is a way to conserve RAM in event that saving
+    # copy of uncorrected quadrant image is unnecessary
+    if save_raw:
+        rimg_quad.rimg_bak = rimg_bak
 
     return rimg_quad
 
