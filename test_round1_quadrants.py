@@ -8,7 +8,7 @@ from warp_utils import WarpMetaParameters
 import matplotlib.pyplot as plt
 import copy
 from unwise_coadd import split_one_quadrant
-from unwise_coadd import split_one_round1
+from unwise_coadd import split_one_l1b_round1
 import fitsio
 from unwise_coadd import ReferenceImage
 from warp_utils import evaluate_warp_poly
