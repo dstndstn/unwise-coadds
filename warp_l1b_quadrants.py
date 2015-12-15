@@ -3,9 +3,26 @@ import time
 from scipy.ndimage.interpolation import map_coordinates
 from wise_l1b_maskinterp import wise_l1b_maskinterp
 from warp_utils import compute_warp
-from warp_utils import render_warp
 from warp_utils import mask_extreme_pix
 from warp_utils import WarpMetaParameters
+from warp_utils import evaluate_warp_poly
+
+def render_warp(warp):
+    # warp input should be an object of type WarpParameters
+    # should this function be a method that belongs to the warp object ?
+
+    par = WarpMetaParameters()
+    # par will tell you the L1b sidelength
+    warp_image = np.zeros((par.sidelen_quad, par.sidelen_quad))
+
+    dx = warp.x_l1b_quad - warp.xmed
+    dy = warp.y_l1b_quad - warp.ymed
+
+    warp_vals = evaluate_warp_poly(warp.coeff, dx, dy)
+    warp_image[warp.y_l1b_quad, warp.x_l1b_quad] = warp_vals
+
+    # return a 508 x 508 image of the warp
+    return warp_image
 
 class WarpParameters:
     # Object to hold a warp's polynomial coefficients and reference coords

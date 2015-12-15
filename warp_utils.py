@@ -28,24 +28,6 @@ def evaluate_warp_poly(coeff, dx, dy):
                        (coeff[14])*(dy**4) )
     return warp_vals
 
-def render_warp(warp):
-    # warp input should be an object of type WarpParameters
-    # should this function be a method that belongs to the warp object ?
-
-    par = WarpMetaParameters()
-    # par will tell you the L1b sidelength
-    warp_image = np.zeros((par.sidelen_quad, par.sidelen_quad))
-
-    dx = warp.x_l1b_quad - warp.xmed
-    dy = warp.y_l1b_quad - warp.ymed
-
-    warp_vals = evaluate_warp_poly(warp.coeff, dx, dy)
-    warp_image[warp.y_l1b_quad, warp.x_l1b_quad] = warp_vals
-
-    # return a 508 x 508 image of the warp
-    return warp_image
-
-
 def poly_design_matrix(dx, dy, order):
     assert((order >= 1) and (order <= 4))
 
