@@ -147,6 +147,8 @@ def apply_warp(rimg_quad):
     # input is a FirstRoundImage object -- a modified version of this
     # object will be returned
     
+    # don't ever want to doubly subtract a polynomial warp correction
+    assert(rimg_quad.warped == False)
     # if rimg_quad.warp is None, return the input object itself
     if rimg_quad.warp is None:
         return rimg_quad

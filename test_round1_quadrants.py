@@ -55,7 +55,7 @@ def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None, band=1):
     
     #print WISE.intfn
     rimgs = get_round1_quadrants(WISE, cowcs, zp_lookup_obj, 
-                                 reference=reference)
+                                 reference=reference, do_apply_warp=True)
     return rimgs, WISE
 
 def create_reference(band=1):
@@ -74,7 +74,7 @@ def plot_quadrant_results(nmax=20, moon_rej=True, band=1):
                                                  reference=reference, band=band)
 
     for rimg_quad in rimgs_quad:
-        rimg_quad = apply_warp(rimg_quad)
+        # rimg_quad = apply_warp(rimg_quad)
         print '--------------------------------------'
         print len(rimg_quad.x_l1b), len(rimg_quad.y_l1b), len(rimg_quad.x_coadd), len(rimg_quad.y_coadd)
         print np.sum(rimg_quad.rmask[rimg_quad.y_coadd, rimg_quad.x_coadd] != 0)
