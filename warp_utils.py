@@ -120,6 +120,29 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
     return (coeff, xmed, ymed, x_l1b_quad, y_l1b_quad, 
             isgood, chi2_mean, chi2_mean_raw, pred)
 
+def render_warp(rimg_quad):
+    # rimg_quad is a FirstRoundImage object representing a quadrant
+    assert(rimg_quad.quadrant != -1)
+
+    sh = rimg_quad.rimg.shape
+    x_l1b_im = np.zeros(sh)
+    y_l1b_im = np.zeros(sh)
+
+    x_l1b_im[rimg_quad.y_coadd, rimg_quad.x_coadd] = rimg_quad.x_l1b
+    y_l1b_im[rimg_quad.y_coadd, rimg_quad.x_coadd] = rimg_quad.y_l1b
+
+    warp = rimg_quad.warp
+    if warp is not None:
+        dx = x_l1b_im - warp.xmed
+        dy = y_l1b_im - warp.ymed
+        warp_image = evaluate_warp_poly(warp.coeff, dx, dy)
+        warp_image *= (rimg_quad.rmask != 0)
+    else:
+        # not sure if this is the right thing to do
+        warp_image = np.zeros(sh)
+
+    return warp_image
+
 def mask_extreme_pix(image, ignore=None):
     # ignore is meant to be a btimask flagging pixels that should be ignored
     # the use case i have in mind is to ignore any zero value pixels, which
