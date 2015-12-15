@@ -13,6 +13,7 @@ import fitsio
 from unwise_coadd import ReferenceImage
 from warp_utils import evaluate_warp_poly
 from warp_utils import render_warp
+from warp_utils import apply_warp
 
 def add_wcs_column(WISE):
     WISE.wcs = np.zeros(len(WISE), object)
@@ -73,6 +74,7 @@ def plot_quadrant_results(nmax=20, moon_rej=True, band=1):
                                                  reference=reference, band=band)
 
     for rimg_quad in rimgs_quad:
+        rimg_quad = apply_warp(rimg_quad)
         print '--------------------------------------'
         print len(rimg_quad.x_l1b), len(rimg_quad.y_l1b), len(rimg_quad.x_coadd), len(rimg_quad.y_coadd)
         print np.sum(rimg_quad.rmask[rimg_quad.y_coadd, rimg_quad.x_coadd] != 0)
@@ -85,9 +87,10 @@ def plot_quadrant_results(nmax=20, moon_rej=True, band=1):
         plt.figure(figsize=(16,10))
    
         plt.subplot(2,4,2)
-        plt.imshow(rimg_quad.rimg, vmin=-10, vmax=40, interpolation='nearest', 
+        quad_im_raw = (rimg_quad.rimg if (warp is None)  else rimg_quad.rimg_bak)
+        plt.imshow(quad_im_raw, vmin=-10, vmax=40, interpolation='nearest', 
                    origin='lower', cmap='gray')
-        plt.title('L1b quadrant', fontsize=8)
+        plt.title('raw L1b quadrant', fontsize=8)
 
         rmask_reconstructed = np.zeros(rimg_quad.rimg.shape)
         rmask_reconstructed[rimg_quad.y_coadd, rimg_quad.x_coadd] = 1
@@ -123,9 +126,10 @@ def plot_quadrant_results(nmax=20, moon_rej=True, band=1):
             plt.title("{:.4f}".format(warp.chi2mean_raw) + " , " + "{:.4f}".format(warp.chi2mean), fontsize=8)
 
             # now construct/plot the warp-corrected quadrant
-            corr = rimg_quad.rimg - warp_image
+            #corr = rimg_quad.rimg - warp_image
             plt.subplot(2,4,4)
-            plt.imshow(corr, cmap='gray', interpolation='nearest', origin='lower', vmin=-10, vmax=40)
+            plt.imshow(rimg_quad.rimg, cmap='gray', interpolation='nearest', origin='lower', vmin=-10, vmax=40)
+            plt.title('corrected L1b quad', fontsize=8)
 
             # masked reference image
             plt.subplot(2,4,5)

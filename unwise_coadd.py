@@ -163,6 +163,8 @@ class FirstRoundImage():
         self.wcs_full = None
         self.cowcs_full = None
         self.warp = None # of type QuadrantWarp
+        self.warped = False
+        self.rimg_bak = None # for debugging only; once warping performed, will hold raw image
 
     def clear_xy_coords(self):
         print "deleting x, y coordinates for quadrant " + str(self.quadrant)

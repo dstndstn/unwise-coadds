@@ -143,6 +143,27 @@ def render_warp(rimg_quad):
 
     return warp_image
 
+def apply_warp(rimg_quad):
+    # input is a FirstRoundImage object -- a modified version of this
+    # object will be returned
+    
+    # if rimg_quad.warp is None, return the input object itself
+    if rimg_quad.warp is None:
+        return rimg_quad
+
+    # set rimg_quad.rimg_bak to value of rimg_quad.rimg
+    rimg_quad.rimg_bak = rimg_quad.rimg
+    # call render_warp to get the warp image
+    warp_image = render_warp(rimg_quad)
+    # subtract the warp image from rimg_quad.rimg
+    rimg_quad.rimg = (rimg_quad.rimg - warp_image)
+    rimg_quad.warped = True
+
+    assert(np.sum(rimg_quad.rimg != rimg_quad.rimg_bak) != 0)
+    assert(np.sum(rimg_quad.rimg != 0) == np.sum(rimg_quad.rimg_bak != 0))
+
+    return rimg_quad
+
 def mask_extreme_pix(image, ignore=None):
     # ignore is meant to be a btimask flagging pixels that should be ignored
     # the use case i have in mind is to ignore any zero value pixels, which
