@@ -489,7 +489,7 @@ def cut_to_epoch(WISE, epoch, before, after):
 
     return WISE
 
-def split_one_l1b_round1(rimg, wise, delete_xy_coords=False, reference=None, do_apply_warp=False):
+def split_one_l1b_round1(rimg, wise, delete_xy_coords=False, reference=None, do_apply_warp=False, save_raw=False):
     # split one round1 image into its constituent quadrants
     # rimg is a round1 image object **that must hold xy coordinates**
     # wise is corresponding row of WISE metadata table
@@ -500,7 +500,7 @@ def split_one_l1b_round1(rimg, wise, delete_xy_coords=False, reference=None, do_
     quadrant_list = []
     for quad_num in range(1, 5):
         rimg_quad = split_one_quadrant(rimg, wise, quad_num, delete_xy_coords=delete_xy_coords, 
-                                       reference=reference, do_apply_warp=do_apply_warp)
+                                       reference=reference, do_apply_warp=do_apply_warp, save_raw=save_raw)
         if rimg_quad is not None:
             quadrant_list.append(rimg_quad)
 
@@ -513,7 +513,7 @@ def split_one_l1b_round1(rimg, wise, delete_xy_coords=False, reference=None, do_
         return quadrant_list
 
 def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, delete_xy_coords=False,
-                       do_apply_warp=False):
+                       do_apply_warp=False, save_raw=False):
     # helper function for split_one_image_quadrants, to deal with just one of the four
     # quadrants
 
@@ -628,7 +628,7 @@ def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, del
              rimg_quad.warp = warp
 #            if do_apply_warp kw set, modify rimg_quad.rimg by subtracting the warp image
              if do_apply_warp:
-                 rimg_quad = apply_warp(rimg_quad)
+                 rimg_quad = apply_warp(rimg_quad, save_raw=save_raw)
     # clear some space in memory if x,y coords no longer needed
     if delete_xy_coords:
         rimg_quad.clear_xy_coords()
@@ -636,7 +636,7 @@ def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, del
     return rimg_quad
 
 def get_round1_quadrants(WISE, cowcs, zp_lookup_obj, delete_xy_coords=False, reference=None,
-                         do_apply_warp=False):
+                         do_apply_warp=False, save_raw=False):
     # WISE is a table with all the relevant L1b metadata
     # particularly imextent, coextent, imextent_q?, coextent_q?
     # should return a list of FirstRoundImage objects one per **quadrant**
@@ -663,7 +663,7 @@ def get_round1_quadrants(WISE, cowcs, zp_lookup_obj, delete_xy_coords=False, ref
         # are holding x_l1b, y_l1b, x_coadd, y_coadd coordinate lists, so this would
         # require a lot of RAM
         quadrants_this_exp = split_one_l1b_round1(rr, wise, reference=reference, delete_xy_coords=delete_xy_coords,
-                                                  do_apply_warp=do_apply_warp)
+                                                  do_apply_warp=do_apply_warp, save_raw=save_raw)
         if quadrants_this_exp is not None:
             quad_rimgs.extend(quadrants_this_exp)
         del rr

@@ -143,7 +143,7 @@ def render_warp(rimg_quad):
 
     return warp_image
 
-def apply_warp(rimg_quad, save_raw=True):
+def apply_warp(rimg_quad, save_raw=False):
     # input is a FirstRoundImage object -- a modified version of this
     # object will be returned
     
