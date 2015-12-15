@@ -4,7 +4,7 @@ from astrometry.util.util import Sip
 from zp_lookup import ZPLookUp
 from astrometry.util.fits import fits_table
 import numpy as np
-from warp_l1b_quadrants import WarpMetaParameters
+from warp_utils import WarpMetaParameters
 import matplotlib.pyplot as plt
 import copy
 from unwise_coadd import split_one_quadrant
@@ -12,6 +12,7 @@ from unwise_coadd import split_one_round1
 import fitsio
 from unwise_coadd import ReferenceImage
 from warp_utils import evaluate_warp_poly
+from warp_utils import render_warp
 
 def add_wcs_column(WISE):
     WISE.wcs = np.zeros(len(WISE), object)
@@ -110,9 +111,12 @@ def plot_quadrant_results(nmax=20, moon_rej=True, band=1):
         if warp is not None:
             dx = x_l1b_im - warp.xmed
             dy = y_l1b_im - warp.ymed
-            warp_image = evaluate_warp_poly(warp.coeff, dx, dy)
+            #warp_image = evaluate_warp_poly(warp.coeff, dx, dy)
             #warp_image = np.zeros(rimg_quad.rimg.shape)
-            warp_image *= (rimg_quad.rmask != 0)
+            #warp_image *= (rimg_quad.rmask != 0)
+
+            # try new function
+            warp_image = render_warp(rimg_quad)
             plt.subplot(2,4,3)
             plt.imshow(warp_image, cmap='gray', interpolation='nearest',
                        origin='lower', vmin=-10, vmax=40)
