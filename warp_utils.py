@@ -80,7 +80,7 @@ def poly_design_matrix(dx, dy, order):
     return X
 
 def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
-                 order=4):
+                 order=4, verbose=False):
     # pix_l1b_quad and pix_ref should be flattened, no need to have them  
     # actually be 2D images here
 
@@ -100,7 +100,7 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
 
         t0 = time.time()
         coeff, __, ___, ____ = np.linalg.lstsq(X, diff)
-        print (time.time()-t0)
+        if verbose: print (time.time()-t0)
 
         pred = np.dot(X, coeff)
         resid = (diff - pred)
@@ -119,7 +119,10 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
         coeff = np.array([pred])
         isgood = np.ones(npix, dtype=bool) # ?? hack
 
-    print coeff, len(coeff) , ' !!!!!!!!!!!'
+    par = WarpMetaParameters()
+    assert(order == par.coeff2order(coeff))
+
+    if verbose: print coeff, len(coeff) , ' !!!!!!!!!!!'
 
     # calculate the mean chi-squared
     # i think the mean chi-squared should be calculated including *all* pixels
@@ -130,7 +133,7 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
     # should chi2_mean_raw be calculated after requiring that
     # reference quadrant and l1b quadrant be made to have matching medians?
     chi2_mean_raw = np.mean(((pix_l1b_quad - pix_ref)/(unc_ref))**2)
-    print chi2_mean_raw,  '~~~~~~~', chi2_mean, '~~~~~~~'
+    if verbose: print chi2_mean_raw,  '~~~~~~~', chi2_mean, '~~~~~~~'
 
     return (coeff, xmed, ymed, x_l1b_quad, y_l1b_quad, 
             isgood, chi2_mean, chi2_mean_raw, pred)
