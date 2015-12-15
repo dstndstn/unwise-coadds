@@ -1795,9 +1795,11 @@ def do_one_warp(rimg, wise, reference):
     # number of pixels to fit warp or because chi2 value
     # of best fit warp isn't good enough
 
+    par = WarpMetaParameters() # set band keyword here ??
+
     npix_good = np.sum(rimg.rmask == 3) # check that 3 is right value
-    # tune this threshold later
-    if npix_good < 45000:
+    order = par.npix2order(npix_good)
+    if order is None:
         print 'Too few pixels :  ' + str(npix_good) + ', not computing warp'
         return None
 
@@ -1820,8 +1822,8 @@ def do_one_warp(rimg, wise, reference):
     # fix the fact that x_l1b_quad is both an input and output here ...
     coeff, xmed, ymed, x_l1b_quad, y_l1b_quad, isgood, chi2_mean, chi2_mean_raw, pred = compute_warp(pix_l1b_quad, pix_ref, 
                                                                                                      x_l1b_im[non_extreme_mask], 
-                                                                                                     y_l1b_im[non_extreme_mask], unc_ref)
-    order = 4 # this is a hack but will fully implement flexibility in polynomial order soon
+                                                                                                     y_l1b_im[non_extreme_mask], unc_ref, 
+                                                                                                     order=order)
     warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed, chi2_mean, chi2_mean_raw, order)
     warp.non_extreme_mask = non_extreme_mask
     return warp

@@ -80,7 +80,7 @@ def plot_quadrant_results(nmax=20, moon_rej=True, band=1):
         if warp is None:
             print 'no warp was computed'
         else:
-            print 'warp was computed !!!!!!!!!!!!!!!!!!!!!!'
+            print 'warp was computed !!!!!!!!!!!!!!!!!!!!!!  order = ' + str(warp.order)
         plt.figure(figsize=(16,10))
    
         plt.subplot(2,4,2)

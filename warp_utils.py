@@ -2,21 +2,30 @@ import numpy as np
 import time
 
 def evaluate_warp_poly(coeff, dx, dy):
-    warp_vals = (coeff[0]) + \
-                (coeff[1])*dx + \
-                (coeff[2])*dy  + \
-                (coeff[3])*(dx*dy) + \
-                (coeff[4])*(dx**2) + \
-                (coeff[5])*(dy**2) + \
-                (coeff[6])*(dx**2)*dy + \
-                (coeff[7])*(dy**2)*dx + \
-                (coeff[8])*(dx**3) + \
-                (coeff[9])*(dy**3) + \
-                (coeff[10])*(dx**2)*(dy**2) + \
-                (coeff[11])*(dx**3)*dy + \
-                (coeff[12])*(dy**3)*dx + \
-                (coeff[13])*(dx**4) + \
-                (coeff[14])*(dy**4)
+    par = WarpMetaParameters()
+    order = par.coeff2order(coeff)
+
+    warp_vals = coeff[0]
+
+    if order > 0:
+        warp_vals += ( (coeff[1])*dx + \
+                       (coeff[2])*dy )
+
+    if order > 1:
+        warp_vals += ( (coeff[3])*(dx*dy) + \
+                       (coeff[4])*(dx**2) + \
+                       (coeff[5])*(dy**2) )
+    if order > 2:
+        warp_vals += ( (coeff[6])*(dx**2)*dy + \
+                       (coeff[7])*(dy**2)*dx + \
+                       (coeff[8])*(dx**3) + \
+                       (coeff[9])*(dy**3) )
+    if order > 3:
+        warp_vals += ( (coeff[10])*(dx**2)*(dy**2) + \
+                       (coeff[11])*(dx**3)*dy + \
+                       (coeff[12])*(dy**3)*dx + \
+                       (coeff[13])*(dx**4) + \
+                       (coeff[14])*(dy**4) )
     return warp_vals
 
 def render_warp(warp):
@@ -104,6 +113,11 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
         # redo the fit with outliers removed
         coeff, __, ___, ____ = np.linalg.lstsq(X[isgood], diff[isgood])
         pred = np.dot(X, coeff)
+    else:
+        # zeroth order case
+        pred = np.median(diff)
+        coeff = np.array([pred])
+        isgood = np.ones(npix, dtype=bool) # ?? hack
 
     print coeff, len(coeff) , ' !!!!!!!!!!!'
 
@@ -193,3 +207,19 @@ class WarpMetaParameters:
             return 0
         else:
             return None
+
+    def coeff2order(self, coeff):
+        # determine polynomial order based on number of coefficients
+        ncoeff = len(coeff)
+
+        # clean this up by using a dictionary
+        if ncoeff == 1:
+            return 0 # zeroth order
+        elif ncoeff == 3:
+            return 1 # first order
+        elif ncoeff == 6:
+            return 2 # second order
+        elif ncoeff == 10:
+            return 3 # third order
+        elif ncoeff == 15:
+            return 4 # fourth order
