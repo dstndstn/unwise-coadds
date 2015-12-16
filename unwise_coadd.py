@@ -116,7 +116,7 @@ class ReferenceImage():
         # these need to be images corresponding to the *entire* reference tile
         self.image = image # the reference image itself
         self.n = n # the integer coverage, should be from *n-u.fits
-        self.sigma = std*np.sqrt(n) # 1 sigma error to be used when computing warp chi2 values
+        self.sigma = self.patch_zero_sigma(std*np.sqrt(n), n) # 1 sigma error to be used when computing warp chi2 values
 
     def extract_cutout(self, rimg):
         # rimg should be the FirstRoundImage object
@@ -128,6 +128,23 @@ class ReferenceImage():
         return (self.image[y0_coadd:y1_coadd, x0_coadd:x1_coadd],  
                 self.sigma[y0_coadd:y1_coadd, x0_coadd:x1_coadd],
                 self.n[y0_coadd:y1_coadd, x0_coadd:x1_coadd])
+
+    def patch_zero_sigma(self, sigma, n):
+        # HACK !!
+        nbad = np.sum((sigma == 0) & (n != 0))
+        if (nbad != 0):
+            ok = patch_image(sigma, ((sigma != 0) | (n == 0)))
+            assert(ok)
+            print 'Patched ' + str(nbad) + ' bad reference uncertainty pixels'
+            return sigma
+        else:
+            return sigma
+
+    def write(self, outname):
+        # for debugging
+        fitsio.write(outname, self.image)
+        fitsio.write(outname, self.n)
+        fitsio.write(outname, self.sigma)
 
 class QuadrantWarp():
     def __init__(self, quadrant, coeff, xmed, ymed, chi2mean, chi2mean_raw, order, non_extreme_mask):
@@ -636,7 +653,7 @@ def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, del
     return rimg_quad
 
 def get_round1_quadrants(WISE, cowcs, zp_lookup_obj, delete_xy_coords=False, reference=None,
-                         do_apply_warp=False, save_raw=False):
+                         do_apply_warp=False, save_raw=False, coadd=None):
     # WISE is a table with all the relevant L1b metadata
     # particularly imextent, coextent, imextent_q?, coextent_q?
     # should return a list of FirstRoundImage objects one per **quadrant**
@@ -644,7 +661,8 @@ def get_round1_quadrants(WISE, cowcs, zp_lookup_obj, delete_xy_coords=False, ref
     # WISE assumed to be already trimmed down to rows for which
     # per-quadrant FirtRoundImage objects are desired
 
-    quad_rimgs = []
+    if coadd is None:
+        quad_rimgs = []
     # for each exposure in the input WISE table
     N = len(WISE)
     table = True # think this is always the case everywhere else ...
@@ -664,16 +682,21 @@ def get_round1_quadrants(WISE, cowcs, zp_lookup_obj, delete_xy_coords=False, ref
         # require a lot of RAM
         quadrants_this_exp = split_one_l1b_round1(rr, wise, reference=reference, delete_xy_coords=delete_xy_coords,
                                                   do_apply_warp=do_apply_warp, save_raw=save_raw)
-        if quadrants_this_exp is not None:
-            quad_rimgs.extend(quadrants_this_exp)
+        if coadd is None:
+            if quadrants_this_exp is not None:
+                quad_rimgs.extend(quadrants_this_exp)
+        else:
+            del quadrants_this_exp
         del rr
 
     gc.collect()
-    if len(quad_rimgs) == 0:
-        return None
+    if coadd is None:
+        if len(quad_rimgs) == 0:
+            return None
+        else:
+            return quad_rimgs
     else:
-        return quad_rimgs
-
+        return coadd
 
 def get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, wi, ps, quad_num, coextent, imextent, margin=10):
     # want to calculate coextent-like and imextent-like values for an L1b 
@@ -1851,14 +1874,9 @@ def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj):
     # it will be best to compute/apply warp at time of each FirstRoundImage's creation i.e. within get_round1_quadrants
 
     # pretty sure I really do want to hardwire delete_xy_coords=True here...
-    quad_rimgs = get_round1_quadrants(WISE, cowcs, zp_lookup_obj, delete_xy_coords=True, reference=reference)
-    # check to make sure there were a non-zero number of quadrants to consider
-    if quad_rimgs is None:
-        return
-    print 'Extracted ' + str(len(quad_rimgs)) + ' quadrants for attempted recovery'
-    del quad_rimgs
+    coadd = get_round1_quadrants(WISE, cowcs, zp_lookup_obj, delete_xy_coords=True, reference=reference, coadd=coadd)
     gc.collect()
-    # loop over this list calling coadd_one_round2 
+    return coadd
 
 def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                do_cube, medfilt, plots2=False, table=True, do_dsky=False,
@@ -2181,9 +2199,10 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     if recover is not None:
         # recover contains Moon-contaminated subset of rows from exposure metadata table
         reference = ReferenceImage(coimg, coppstd, con)
+        reference.write('reference.fits') # for debugging
         # does cowcs need to be **full** coadd WCS here ?? think so..
         zp_lookup_obj = ZPLookUp(band, poly=True)
-        recover_moon_frames(recover, coadd, reference, cowcs, zp_lookup_obj)
+        coadd = recover_moon_frames(recover, coadd, reference, cowcs, zp_lookup_obj)
 
     # think it's best to only do coadd-level sky subtraction
     # *after* attempting to recover Moon-contaminated frames

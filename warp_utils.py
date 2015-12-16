@@ -67,6 +67,8 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
     # actually be 2D images here
 
     assert((order >= 0) and (order <= 4))
+    # should this actually use <= 0 rather than == 0 ?
+    assert(np.sum(unc_ref == 0) == 0) 
 
     diff = pix_l1b_quad - pix_ref
     npix = len(diff)
