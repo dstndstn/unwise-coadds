@@ -1111,12 +1111,12 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     # Bit 1: abs(rchi) >= 5
     badpixmask = badpix.astype(np.uint8)
     # grow by a small margin
-    badpix = binary_dilation(badpix)
+    badpix = binary_dilation(badpixmask)
     # Bit 2: grown
     badpixmask += (2 * badpix)
 
-    # Add dilated rchi-masked pixels to the "rmask" (clear bit 2)
-    rr.rmask[badpix] &= ~2
+    # Add dilated rchi-masked pixels to the "rmask" (clear value 0x2)
+    rr.rmask[badpix] &= (0xff - 0x2)
 
     # "omask" is the file we're going to write out saying which pixels
     # were rchi masked, in L1b pixel space.
