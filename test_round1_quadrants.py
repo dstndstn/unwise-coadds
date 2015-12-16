@@ -134,10 +134,12 @@ def plot_quadrant_results(nmax=20, moon_rej=True, band=1):
             # masked reference image
             plt.subplot(2,4,5)
             plt.imshow(imref*warp.non_extreme_mask, vmin=-10, vmax=40, origin='lower', interpolation='nearest', cmap='gray')
+            plt.title('masked reference', fontsize=8)
 
             # masked quadrant image
             plt.subplot(2,4,6)
-            plt.imshow(rimg_quad.rimg*warp.non_extreme_mask, vmin=-10, vmax=40, origin='lower', interpolation='nearest', cmap='gray')
+            plt.imshow(rimg_quad.rimg_bak*warp.non_extreme_mask, vmin=-10, vmax=40, origin='lower', interpolation='nearest', cmap='gray')
+            plt.title('masked L1b quad raw', fontsize=8)
 
             # non-extreme vs. extreme reference image pixel mask
             #plt.subplot(2,4,7)
