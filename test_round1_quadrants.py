@@ -8,7 +8,6 @@ from warp_utils import WarpMetaParameters
 import matplotlib.pyplot as plt
 import copy
 from unwise_coadd import split_one_quadrant
-from unwise_coadd import split_one_l1b_round1
 import fitsio
 from unwise_coadd import ReferenceImage
 from warp_utils import evaluate_warp_poly
@@ -23,7 +22,7 @@ def add_wcs_column(WISE):
         WISE.wcs[i] = Sip(WISE.intfn[i])
     return WISE
 
-def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None, band=1):
+def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None, band=1, only_good_chi2=False):
 # choose a name for file from which WISE will be read
     tabname = '/global/cscratch1/sd/ameisner/unwise_test_tiles/foo20/e0_moon/343/3433p000/unwise-3433p000-w'+str(band)+'-frames.fits'
 
@@ -55,7 +54,7 @@ def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None, band=1):
     
     #print WISE.intfn
     rimgs = get_round1_quadrants(WISE, cowcs, zp_lookup_obj, 
-                                 reference=reference, do_apply_warp=True, save_raw=True)
+                                 reference=reference, do_apply_warp=True, save_raw=True, only_good_chi2=only_good_chi2)
     return rimgs, WISE
 
 def create_reference(band=1):

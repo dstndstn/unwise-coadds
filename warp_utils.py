@@ -145,14 +145,17 @@ def render_warp(rimg_quad):
 
     return warp_image
 
-def apply_warp(rimg_quad, save_raw=False):
+def apply_warp(rimg_quad, band, save_raw=False, only_good_chi2=False):
     # input is a FirstRoundImage object -- a modified version of this
     # object will be returned
     
     # don't ever want to doubly subtract a polynomial warp correction
     assert(rimg_quad.warped == False)
-    # if rimg_quad.warp is None, return the input object itself
-    if rimg_quad.warp is None:
+    # if rimg_quad.warp is None, or if the warp correction didn't achieve a
+    # good enough chi-squared, return the input object itself
+    par = WarpMetaParameters(band=band)
+
+    if (rimg_quad.warp is None) or (only_good_chi2 and (rimg_quad.warp.chi2mean > par.chi2_mean_thresh)):
         return rimg_quad
 
     # save uncorrected image to rimg_bak
