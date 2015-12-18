@@ -158,6 +158,14 @@ class QuadrantWarp():
         self.order = order
         self.non_extreme_mask = non_extreme_mask
 
+class FirstRoundCoadd():
+    def __init__(self, coimg1, cow1, coppstd1, cowimgsq1):
+        self.coimg1 = coimg1
+        self.cow1 = cow1
+        self.coppstd1 = coppstd1
+        self.cowimgsq1 = cowimgsq1
+        self.cowimg1 = coimg1*cow1
+
 class FirstRoundImage():
     def __init__(self, quadrant=-1):
         self.coextent = None
@@ -1910,10 +1918,10 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     tinyw = 1e-16
 
     # Round-1 coadd:
-    (rimgs, coimg1, cow1, coppstd1, cowimgsq1, cube1)= _coadd_wise_round1(
+    (rimgs, r1_coadd, cube1) = _coadd_wise_round1(
         cowcs, WISE, ps, band, table, L, tinyw, mp1, medfilt, checkmd5,
         bgmatch, do_cube1)
-    cowimg1 = coimg1 * cow1
+
     assert(len(rimgs) == len(WISE))
 
     if mp1 != mp2:
@@ -2183,7 +2191,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
             scanid = ('scan %s frame %i band %i' %
                       (WISE.scan_id[ri], WISE.frame_num[ri], band))
             mm = _coadd_one_round2(
-                (ri, len(WISE), scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
+                (ri, len(WISE), scanid, rr, r1_coadd.cow1, r1_coadd.cowimg1, r1_coadd.cowimgsq1, tinyw,
                  plotfn, ps1, do_dsky, rchi_fraction))
             coadd.acc(mm, delmm=delmm)
             masks.append(mm)
@@ -2197,7 +2205,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                 plotfn = None
             scanid = ('scan %s frame %i band %i' %
                       (WISE.scan_id[ri], WISE.frame_num[ri], band))
-            args.append((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
+            args.append((ri, N, scanid, rr, r1_coadd.cow1, r1_coadd.cowimg1, r1_coadd.cowimgsq1, tinyw,
                          plotfn, ps1, do_dsky, rchi_fraction))
         #masks = mp.map(_coadd_one_round2, args)
         masks = mp2.map(_bounce_one_round2, args)
@@ -2707,7 +2715,8 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
         plt.ylim(max(1, min(n)), max(n)*1.1)
         ps.savefig()
 
-    return rimgs, coimg, cow, coppstd, coimgsq, cube
+    r1_coadd = FirstRoundCoadd(coimg, cow, coppstd, coimgsq)
+    return rimgs, r1_coadd, cube
 
 def get_wise_frames_for_dataset(dataset, r0,r1,d0,d1,
                                 randomize=False, cache=True, dirnm=None):
