@@ -165,6 +165,7 @@ def apply_warp(rimg_quad, band, save_raw=False, only_good_chi2=False):
     # subtract the warp image from rimg_quad.rimg
     rimg_quad.rimg = (rimg_quad.rimg - warp_image)
     rimg_quad.warped = True
+    print 'Subtracted polynomial warp from quadrant'
 
     assert(np.sum(rimg_quad.rimg != rimg_bak) != 0)
     assert(np.sum(rimg_quad.rimg != 0) == np.sum(rimg_bak != 0))
