@@ -692,6 +692,10 @@ def get_round1_quadrants(WISE, cowcs, zp_lookup_obj, delete_xy_coords=False, ref
                 for qq in quadrants_this_exp:
                     if qq.warped:
                         print 'Recovered a quadrant !!!!' 
+                    elif qq.warp is None:
+                        print 'No warp attempted !!!!'
+                    else:
+                        print 'Quadrant recovery failed !!!!'
         del quadrants_this_exp
         del rr
 
