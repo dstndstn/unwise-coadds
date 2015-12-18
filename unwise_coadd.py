@@ -506,7 +506,8 @@ def cut_to_epoch(WISE, epoch, before, after):
 
     return WISE
 
-def split_one_l1b_round1(rimg, wise, delete_xy_coords=False, reference=None, do_apply_warp=False, save_raw=False):
+def split_one_l1b_round1(rimg, wise, delete_xy_coords=False, reference=None, do_apply_warp=False, save_raw=False,
+                         only_good_chi2=True):
     # split one round1 image into its constituent quadrants
     # rimg is a round1 image object **that must hold xy coordinates**
     # wise is corresponding row of WISE metadata table
@@ -517,7 +518,8 @@ def split_one_l1b_round1(rimg, wise, delete_xy_coords=False, reference=None, do_
     quadrant_list = []
     for quad_num in range(1, 5):
         rimg_quad = split_one_quadrant(rimg, wise, quad_num, delete_xy_coords=delete_xy_coords, 
-                                       reference=reference, do_apply_warp=do_apply_warp, save_raw=save_raw)
+                                       reference=reference, do_apply_warp=do_apply_warp, save_raw=save_raw, 
+                                       only_good_chi2=only_good_chi2)
         if rimg_quad is not None:
             quadrant_list.append(rimg_quad)
 
@@ -530,7 +532,7 @@ def split_one_l1b_round1(rimg, wise, delete_xy_coords=False, reference=None, do_
         return quadrant_list
 
 def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, delete_xy_coords=False,
-                       do_apply_warp=False, save_raw=False):
+                       do_apply_warp=False, save_raw=False, only_good_chi2=True):
     # helper function for split_one_image_quadrants, to deal with just one of the four
     # quadrants
 
@@ -645,7 +647,7 @@ def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, del
              rimg_quad.warp = warp
 #            if do_apply_warp kw set, modify rimg_quad.rimg by subtracting the warp image
              if do_apply_warp:
-                 rimg_quad = apply_warp(rimg_quad, save_raw=save_raw)
+                 rimg_quad = apply_warp(rimg_quad, wise.band, save_raw=save_raw, only_good_chi2=only_good_chi2)
     # clear some space in memory if x,y coords no longer needed
     if delete_xy_coords:
         rimg_quad.clear_xy_coords()
@@ -653,13 +655,13 @@ def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, del
     return rimg_quad
 
 def get_round1_quadrants(WISE, cowcs, zp_lookup_obj, delete_xy_coords=False, reference=None,
-                         do_apply_warp=False, save_raw=False, coadd=None):
+                         do_apply_warp=False, save_raw=False, coadd=None, only_good_chi2=True):
     # WISE is a table with all the relevant L1b metadata
     # particularly imextent, coextent, imextent_q?, coextent_q?
     # should return a list of FirstRoundImage objects one per **quadrant**
 
     # WISE assumed to be already trimmed down to rows for which
-    # per-quadrant FirtRoundImage objects are desired
+    # per-quadrant FirstRoundImage objects are desired
 
     if coadd is None:
         quad_rimgs = []
@@ -681,12 +683,16 @@ def get_round1_quadrants(WISE, cowcs, zp_lookup_obj, delete_xy_coords=False, ref
         # are holding x_l1b, y_l1b, x_coadd, y_coadd coordinate lists, so this would
         # require a lot of RAM
         quadrants_this_exp = split_one_l1b_round1(rr, wise, reference=reference, delete_xy_coords=delete_xy_coords,
-                                                  do_apply_warp=do_apply_warp, save_raw=save_raw)
+                                                  do_apply_warp=do_apply_warp, save_raw=save_raw, only_good_chi2=only_good_chi2)
         if coadd is None:
             if quadrants_this_exp is not None:
                 quad_rimgs.extend(quadrants_this_exp)
         else:
-            del quadrants_this_exp
+            if quadrants_this_exp is not None:
+                for qq in quadrants_this_exp:
+                    if qq.warped:
+                        print 'Recovered a quadrant !!!!' 
+        del quadrants_this_exp
         del rr
 
     gc.collect()
@@ -1874,7 +1880,8 @@ def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj):
     # it will be best to compute/apply warp at time of each FirstRoundImage's creation i.e. within get_round1_quadrants
 
     # pretty sure I really do want to hardwire delete_xy_coords=True here...
-    coadd = get_round1_quadrants(WISE, cowcs, zp_lookup_obj, delete_xy_coords=True, reference=reference, coadd=coadd)
+    coadd = get_round1_quadrants(WISE, cowcs, zp_lookup_obj, delete_xy_coords=True, reference=reference, 
+                                 do_apply_warp=True, save_raw=False, coadd=coadd)
     gc.collect()
     return coadd
 
@@ -2199,7 +2206,6 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     if recover is not None:
         # recover contains Moon-contaminated subset of rows from exposure metadata table
         reference = ReferenceImage(coimg, coppstd, con)
-        reference.write('reference.fits') # for debugging
         # does cowcs need to be **full** coadd WCS here ?? think so..
         zp_lookup_obj = ZPLookUp(band, poly=True)
         coadd = recover_moon_frames(recover, coadd, reference, cowcs, zp_lookup_obj)
