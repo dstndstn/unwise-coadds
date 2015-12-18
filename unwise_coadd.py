@@ -1519,6 +1519,9 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     '''
     if rr is None:
         return None
+
+    included_round1 = (rr.quadrant == -1) # kind of a hack
+
     print 'Coadd round 2, image', (ri+1), 'of', N
     t00 = Time()
     mm = Duck()
@@ -1532,10 +1535,17 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     cox0,cox1,coy0,coy1 = rr.coextent
     coslc = slice(coy0, coy1+1), slice(cox0, cox1+1)
     # Remove this image from the per-pixel std calculation...
-    subw  = np.maximum(cow1[coslc] - rr.w, tinyw)
-    subco = (cowimg1  [coslc] - (rr.w * rr.rimg   )) / subw
-    subsq = (cowimgsq1[coslc] - (rr.w * rr.rimg**2)) / subw
+    if included_round1:
+        subw  = np.maximum(cow1[coslc] - rr.w, tinyw)
+        subco = (cowimg1  [coslc] - (rr.w * rr.rimg   )) / subw
+        subsq = (cowimgsq1[coslc] - (rr.w * rr.rimg**2)) / subw
+    else:
+        subw  = np.maximum(cow1[coslc], tinyw)
+        subco = (cowimg1[coslc]) / subw
+        subsq = (cowimgsq1[coslc]) / subw
+    
     subv = np.maximum(0, subsq - subco**2)
+
     # previously, no prior:
     # subp = np.sqrt(np.maximum(0, subsq - subco**2))
 
