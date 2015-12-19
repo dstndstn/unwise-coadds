@@ -662,8 +662,8 @@ def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, del
 
     return rimg_quad
 
-def get_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_xy_coords=False, reference=None,
-                         do_apply_warp=False, save_raw=False, coadd=None, only_good_chi2=True):
+def process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_xy_coords=False, reference=None,
+                             do_apply_warp=False, save_raw=False, coadd=None, only_good_chi2=True):
     # WISE is a table with all the relevant L1b metadata
     # particularly imextent, coextent, imextent_q?, coextent_q?
     # should return a list of FirstRoundImage objects one per **quadrant**
@@ -1911,11 +1911,11 @@ def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj, r1_coadd):
     nrec = len(WISE)
     print 'Attempting to recover ' + str(nrec) + ' Moon-contaminated frames'
     # call routine to generate per-quadrant list of FirstRoundImages
-    # it will be best to compute/apply warp at time of each FirstRoundImage's creation i.e. within get_round1_quadrants
+    # it will be best to compute/apply warp at time of each FirstRoundImage's creation i.e. within process_round1_quadrants
 
     # pretty sure I really do want to hardwire delete_xy_coords=True here...
-    coadd = get_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=r1_coadd, delete_xy_coords=True, reference=reference, 
-                                 do_apply_warp=True, save_raw=False, coadd=coadd)
+    coadd = process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=r1_coadd, delete_xy_coords=True, reference=reference, 
+                                     do_apply_warp=True, save_raw=False, coadd=coadd)
     gc.collect()
     return coadd
 

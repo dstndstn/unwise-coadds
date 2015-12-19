@@ -1,4 +1,4 @@
-from unwise_coadd import get_round1_quadrants
+from unwise_coadd import process_round1_quadrants
 from astrometry.util.util import Tan
 from astrometry.util.util import Sip
 from zp_lookup import ZPLookUp
@@ -55,8 +55,8 @@ def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None, band=1, o
     print len(WISE), ' !!!!!!!!!!!!!!'
     
     #print WISE.intfn
-    rimgs = get_round1_quadrants(WISE, cowcs, zp_lookup_obj, 
-                                 reference=reference, do_apply_warp=True, save_raw=True, only_good_chi2=only_good_chi2)
+    rimgs = process_round1_quadrants(WISE, cowcs, zp_lookup_obj, 
+                                     reference=reference, do_apply_warp=True, save_raw=True, only_good_chi2=only_good_chi2)
     return rimgs, WISE
 
 def create_reference(band=1):
