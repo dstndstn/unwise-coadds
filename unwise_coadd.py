@@ -1283,7 +1283,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         fitsio.write(ofn, comax.astype(np.float32), header=hdr, clobber=True)
         print 'Wrote', ofn
 
-    WISE.included = np.zeros(len(WISE), bool)
+    WISE.included = np.zeros(len(WISE), np.uint8)
     WISE.sky1 = np.zeros(len(WISE), np.float32)
     WISE.sky2 = np.zeros(len(WISE), np.float32)
     WISE.zeropoint = np.zeros(len(WISE), np.float32)
@@ -1315,7 +1315,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         if not mm.included:
             continue
 
-        WISE.included   [ii] = True
+        WISE.included   [ii] = 1
 
         # Write outlier masks
         ofn = WISE.intfn[ii].replace('-int', '')
@@ -1549,7 +1549,7 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     mm.sky      = rr.sky
     mm.zp       = rr.zp
     mm.w        = rr.w
-    mm.included = True
+    mm.included = 1
 
     cox0,cox1,coy0,coy1 = rr.coextent
     coslc = slice(coy0, coy1+1), slice(cox0, cox1+1)
@@ -1620,7 +1620,7 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     if mm.nrchipix > mm.ncopix * rchi_fraction:
         print ('WARNING: dropping exposure %s: n rchi pixels %i / %i' %
                (scanid, mm.nrchipix, mm.ncopix))
-        mm.included = False
+        mm.included = 0
 
     if ps1:
         # save for later
