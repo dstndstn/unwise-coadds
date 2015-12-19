@@ -617,7 +617,7 @@ def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, del
     quad_mask_image[(rimg.y_coadd)[quad_mask], (rimg.x_coadd)[quad_mask]] = 1
     
     quad_rimg = (rimg.rimg)*quad_mask_image
-    quad_rmask = (rimg.rmask)*quad_mask_image
+    quad_rmask = ((rimg.rmask)*quad_mask_image).astype('int')
 
     # need to extract relevant cutouts that become rimg_quad.rimg and rimg_quad.rmask
     assert((coextent_q[0] >= rimg.coextent[0]) and (coextent_q[1] <= rimg.coextent[1]))
@@ -662,7 +662,7 @@ def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, del
 
     return rimg_quad
 
-def get_round1_quadrants(WISE, cowcs, zp_lookup_obj, delete_xy_coords=False, reference=None,
+def get_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_xy_coords=False, reference=None,
                          do_apply_warp=False, save_raw=False, coadd=None, only_good_chi2=True):
     # WISE is a table with all the relevant L1b metadata
     # particularly imextent, coextent, imextent_q?, coextent_q?
@@ -699,6 +699,17 @@ def get_round1_quadrants(WISE, cowcs, zp_lookup_obj, delete_xy_coords=False, ref
             if quadrants_this_exp is not None:
                 for qq in quadrants_this_exp:
                     if qq.warped:
+                        if r1_coadd is not None:
+                            scanid = ('scan %s frame %i band %i' % (wise.scan_id, wise.frame_num, band))
+                            plotfn = None
+                            ps1 = False # maybe this should be None instead ?
+                            do_dsky = False
+                            delmm = True
+                            tinyw = 1e-16
+                            rchi_fraction = 0.01 # might need to tune this
+                            mm = _coadd_one_round2((wi, N, scanid, qq, r1_coadd.cow1, r1_coadd.cowimg1, r1_coadd.cowimgsq1, tinyw,
+                                                    plotfn, ps1, do_dsky, rchi_fraction))
+                            # coadd.acc(mm, delmm=delmm)
                         print 'Recovered a quadrant !!!!' 
                     elif qq.warp is None:
                         print 'No warp attempted !!!!'
@@ -1887,10 +1898,11 @@ def do_one_warp(rimg, wise, reference):
     warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed, chi2_mean, chi2_mean_raw, order, non_extreme_mask)
     return warp
 
-def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj):
+def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj, r1_coadd):
     # coadd is a coaddacc object, which should already have accumulated
     # the Moon-free exposures
     # reference holds relevant info about reference coadd, and is a ReferenceImage object
+    # r1_coadd is a FirstRoundCoadd object
     assert(np.min(WISE.use) == 1)
     assert(np.min(WISE.moon_rej) == 1)
 
@@ -1902,7 +1914,7 @@ def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj):
     # it will be best to compute/apply warp at time of each FirstRoundImage's creation i.e. within get_round1_quadrants
 
     # pretty sure I really do want to hardwire delete_xy_coords=True here...
-    coadd = get_round1_quadrants(WISE, cowcs, zp_lookup_obj, delete_xy_coords=True, reference=reference, 
+    coadd = get_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=r1_coadd, delete_xy_coords=True, reference=reference, 
                                  do_apply_warp=True, save_raw=False, coadd=coadd)
     gc.collect()
     return coadd
@@ -2230,7 +2242,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
         reference = ReferenceImage(coimg, coppstd, con)
         # does cowcs need to be **full** coadd WCS here ?? think so..
         zp_lookup_obj = ZPLookUp(band, poly=True)
-        coadd = recover_moon_frames(recover, coadd, reference, cowcs, zp_lookup_obj)
+        coadd = recover_moon_frames(recover, coadd, reference, cowcs, zp_lookup_obj, r1_coadd)
 
     # think it's best to only do coadd-level sky subtraction
     # *after* attempting to recover Moon-contaminated frames

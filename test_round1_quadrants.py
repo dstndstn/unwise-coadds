@@ -16,7 +16,9 @@ from warp_utils import apply_warp
 
 def add_wcs_column(WISE):
     WISE.wcs = np.zeros(len(WISE), object)
-    nexp = len(WISE)
+    nexp = len(WISE) 
+    for i in range(nexp):
+        WISE.intfn[i] = (WISE.intfn[i]).replace(' ', '')
     for i in range(nexp):
         print WISE.intfn[i]
         WISE.wcs[i] = Sip(WISE.intfn[i])
@@ -24,10 +26,10 @@ def add_wcs_column(WISE):
 
 def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None, band=1, only_good_chi2=False):
 # choose a name for file from which WISE will be read
-    tabname = '/global/cscratch1/sd/ameisner/unwise_test_tiles/foo20/e0_moon/343/3433p000/unwise-3433p000-w'+str(band)+'-frames.fits'
-
+#    tabname = '/global/cscratch1/sd/ameisner/unwise_test_tiles/foo20/e0_moon/343/3433p000/unwise-3433p000-w'+str(band)+'-frames.fits'
+    tabname = '/global/cscratch1/sd/ameisner/unwise_test_tiles/foo63/moon/343/3433p000/unwise-3433p000-w'+str(band)+'-frames.fits'
 # this implies a choice of coadd..
-    coaddname = '/global/cscratch1/sd/ameisner/unwise_test_tiles/foo20/e0_moon/343/3433p000/unwise-3433p000-w'+str(band)+'-img-m.fits'
+    coaddname = '/global/cscratch1/sd/ameisner/unwise_test_tiles/foo63/moon/343/3433p000/unwise-3433p000-w'+str(band)+'-img-m.fits'
 
 # read (or create) the coadd header WCS
     cowcs = Tan(coaddname)
