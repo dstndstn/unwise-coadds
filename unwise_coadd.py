@@ -709,7 +709,7 @@ def get_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_xy_co
                             rchi_fraction = 0.01 # might need to tune this
                             mm = _coadd_one_round2((wi, N, scanid, qq, r1_coadd.cow1, r1_coadd.cowimg1, r1_coadd.cowimgsq1, tinyw,
                                                     plotfn, ps1, do_dsky, rchi_fraction))
-                            # coadd.acc(mm, delmm=delmm)
+                            coadd.acc(mm, delmm=delmm)
                         print 'Recovered a quadrant !!!!' 
                     elif qq.warp is None:
                         print 'No warp attempted !!!!'
@@ -2235,14 +2235,16 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     gc.collect()
     print 'After garbage collection:', Time()-t0
 
-    coimg,  coinvvar,  coppstd,  con, coimgb, coinvvarb, coppstdb, conb, cube = extract_round2_outputs(coadd, tinyw)
-
     if recover is not None:
         # recover contains Moon-contaminated subset of rows from exposure metadata table
+        coadd_copy = deepcopy(coadd)
+        coimg,  coinvvar,  coppstd,  con, coimgb, coinvvarb, coppstdb, conb, cube = extract_round2_outputs(coadd_copy, tinyw)
         reference = ReferenceImage(coimg, coppstd, con)
         # does cowcs need to be **full** coadd WCS here ?? think so..
         zp_lookup_obj = ZPLookUp(band, poly=True)
         coadd = recover_moon_frames(recover, coadd, reference, cowcs, zp_lookup_obj, r1_coadd)
+
+    coimg,  coinvvar,  coppstd,  con, coimgb, coinvvarb, coppstdb, conb, cube = extract_round2_outputs(coadd, tinyw)
 
     # think it's best to only do coadd-level sky subtraction
     # *after* attempting to recover Moon-contaminated frames
