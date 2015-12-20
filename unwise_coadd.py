@@ -147,7 +147,8 @@ class ReferenceImage():
         fitsio.write(outname, self.sigma)
 
 class QuadrantWarp():
-    def __init__(self, quadrant, coeff, xmed, ymed, chi2mean, chi2mean_raw, order, non_extreme_mask, npix, debug=False):
+    def __init__(self, quadrant, coeff, xmed, ymed, chi2mean, chi2mean_raw, order, 
+                 non_extreme_mask, npix, scan_id, frame_num, debug=False):
         self.quadrant = quadrant # this is an integer ??
         self.coeff = coeff
         self.xmed = xmed
@@ -160,6 +161,8 @@ class QuadrantWarp():
         else:
             self.non_extreme_mask = None
         self.npix = int(npix) # number of pixels used in fit, including those rejected in iterative fit
+        self.scan_id = scan_id
+        self.frame_num = frame_num
 
 class FirstRoundCoadd():
     def __init__(self, coimg1, cow1, coppstd1, cowimgsq1):
@@ -685,6 +688,7 @@ def process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_x
     medfilt = False # hack
     do_check_md5 = False # hack
 
+    warp_list = [] # list of QuadrantWarp objects for successfully warped quadrants
     print "Creating per-quadrant FirstRoundImage objects"
     for wi, wise in enumerate(WISE):
         # do the usual call to _coadd_one_round1 to get a typical FirstRoundImage
@@ -1898,7 +1902,9 @@ def do_one_warp(rimg, wise, reference, debug=False):
                                                                                                      x_l1b_im[non_extreme_mask], 
                                                                                                      y_l1b_im[non_extreme_mask], unc_ref, 
                                                                                                      order=order)
-    warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed, chi2_mean, chi2_mean_raw, order, non_extreme_mask, npix_good, debug=debug)
+    warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed, chi2_mean, chi2_mean_raw, 
+                        order, non_extreme_mask, npix_good, wise.scan_id, wise.frame_num, 
+                        debug=debug)
     return warp
 
 def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj, r1_coadd):

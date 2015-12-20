@@ -216,3 +216,15 @@ def recovery_stats(nmax=20, moon_rej=True, band=1, plot=False):
         plt.show()
 
     return (ntot, n_attempted, n_success, n_fail, n_skipped, chi2mean_vals)
+
+def create_warp_list(band=1, nmax=20, moon_rej=True):
+
+    reference = create_reference(band=band)
+    rimgs_quad, WISE = assemble_quadrant_objects(nmax=nmax, moon_rej=moon_rej, 
+                                                 reference=reference, band=band)
+
+    warp_list = []
+    for rimg_quad in rimgs_quad:
+        if rimg_quad.warp is not None:
+            warp_list.append(rimg_quad.warp)
+    return warp_list
