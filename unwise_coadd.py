@@ -147,16 +147,18 @@ class ReferenceImage():
         fitsio.write(outname, self.sigma)
 
 class QuadrantWarp():
-    def __init__(self, quadrant, coeff, xmed, ymed, chi2mean, chi2mean_raw, order, non_extreme_mask, npix):
+    def __init__(self, quadrant, coeff, xmed, ymed, chi2mean, chi2mean_raw, order, non_extreme_mask, npix, debug=False):
         self.quadrant = quadrant # this is an integer ??
         self.coeff = coeff
         self.xmed = xmed
         self.ymed = ymed
         self.chi2mean = chi2mean
         self.chi2mean_raw = chi2mean_raw
-        self.non_extreme_mask = None # this is intended for debugging only
         self.order = order
-        self.non_extreme_mask = non_extreme_mask
+        if debug:
+            self.non_extreme_mask = non_extreme_mask
+        else:
+            self.non_extreme_mask = None
         self.npix = int(npix) # number of pixels used in fit, including those rejected in iterative fit
 
 class FirstRoundCoadd():
@@ -516,7 +518,7 @@ def cut_to_epoch(WISE, epoch, before, after):
     return WISE
 
 def split_one_l1b_round1(rimg, wise, delete_xy_coords=False, reference=None, do_apply_warp=False, save_raw=False,
-                         only_good_chi2=True):
+                         only_good_chi2=True, debug=False):
     # split one round1 image into its constituent quadrants
     # rimg is a round1 image object **that must hold xy coordinates**
     # wise is corresponding row of WISE metadata table
@@ -528,7 +530,7 @@ def split_one_l1b_round1(rimg, wise, delete_xy_coords=False, reference=None, do_
     for quad_num in range(1, 5):
         rimg_quad = split_one_quadrant(rimg, wise, quad_num, delete_xy_coords=delete_xy_coords, 
                                        reference=reference, do_apply_warp=do_apply_warp, save_raw=save_raw, 
-                                       only_good_chi2=only_good_chi2)
+                                       only_good_chi2=only_good_chi2, debug=debug)
         if rimg_quad is not None:
             quadrant_list.append(rimg_quad)
 
@@ -541,7 +543,7 @@ def split_one_l1b_round1(rimg, wise, delete_xy_coords=False, reference=None, do_
         return quadrant_list
 
 def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, delete_xy_coords=False,
-                       do_apply_warp=False, save_raw=False, only_good_chi2=True):
+                       do_apply_warp=False, save_raw=False, only_good_chi2=True, debug=False):
     # helper function for split_one_image_quadrants, to deal with just one of the four
     # quadrants
 
@@ -650,7 +652,7 @@ def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, del
 
     # if reference is not None, call the warping code here !!
     if reference is not None:
-        warp = do_one_warp(rimg_quad, wise, reference)
+        warp = do_one_warp(rimg_quad, wise, reference, debug=debug)
 
         if warp is not None:
              rimg_quad.warp = warp
@@ -664,7 +666,7 @@ def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, del
     return rimg_quad
 
 def process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_xy_coords=False, reference=None,
-                             do_apply_warp=False, save_raw=False, coadd=None, only_good_chi2=True):
+                             do_apply_warp=False, save_raw=False, coadd=None, only_good_chi2=True, debug=False):
     # WISE is a table with all the relevant L1b metadata
     # particularly imextent, coextent, imextent_q?, coextent_q?
     # should return a list of FirstRoundImage objects one per **quadrant**
@@ -692,7 +694,7 @@ def process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_x
         # are holding x_l1b, y_l1b, x_coadd, y_coadd coordinate lists, so this would
         # require a lot of RAM
         quadrants_this_exp = split_one_l1b_round1(rr, wise, reference=reference, delete_xy_coords=delete_xy_coords,
-                                                  do_apply_warp=do_apply_warp, save_raw=save_raw, only_good_chi2=only_good_chi2)
+                                                  do_apply_warp=do_apply_warp, save_raw=save_raw, only_good_chi2=only_good_chi2, debug=debug)
         if coadd is None:
             if quadrants_this_exp is not None:
                 quad_rimgs.extend(quadrants_this_exp)
@@ -1853,7 +1855,7 @@ def binimg(img, b):
     return (reduce(np.add, [img[i/b:hh:b, i%b:ww:b] for i in range(b*b)]) /
             float(b*b))
 
-def do_one_warp(rimg, wise, reference):
+def do_one_warp(rimg, wise, reference, debug=False):
     # return value needs to somehow indicate whether the warp
     # succeeded or failed
     assert(rimg.quadrant != -1)
@@ -1896,7 +1898,7 @@ def do_one_warp(rimg, wise, reference):
                                                                                                      x_l1b_im[non_extreme_mask], 
                                                                                                      y_l1b_im[non_extreme_mask], unc_ref, 
                                                                                                      order=order)
-    warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed, chi2_mean, chi2_mean_raw, order, non_extreme_mask, npix_good)
+    warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed, chi2_mean, chi2_mean_raw, order, non_extreme_mask, npix_good, debug=debug)
     return warp
 
 def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj, r1_coadd):

@@ -56,7 +56,7 @@ def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None, band=1, o
     
     #print WISE.intfn
     rimgs = process_round1_quadrants(WISE, cowcs, zp_lookup_obj, 
-                                     reference=reference, do_apply_warp=True, save_raw=True, only_good_chi2=only_good_chi2)
+                                     reference=reference, do_apply_warp=True, save_raw=True, only_good_chi2=only_good_chi2, debug=True)
     return rimgs, WISE
 
 def create_reference(band=1):
