@@ -265,3 +265,40 @@ class WarpMetaParameters:
             return 3 # third order
         elif ncoeff == 15:
             return 4 # fourth order
+
+def gen_warp_table(warp_list):
+    # generate a table summarizing the successfully derived/applied warps
+    # based on a list of QuadrantWarp objects
+
+    # assume that warp_list contains no None entries
+
+    nwarp = len(warp_list)
+    arr_out = np.zeros((nwarp,), 
+                       dtype=[('scan_id','a6'),
+                              ('frame_num','int'),
+                              ('quad_num','uint8'),
+                              ('order','uint8'),
+                              ('coeff','(15,)float64'),
+                              ('x_ref', 'int'),
+                              ('y_ref', 'int'),
+                              ('chi2_mean', 'float32'),
+                              ('chi2_mean_raw', 'float32'),
+                              ('npix', 'int')])
+    for i,warp in enumerate(warp_list):
+        arr_out['scan_id'][i] = warp.scan_id
+        arr_out['frame_num'][i] = warp.frame_num
+        arr_out['quad_num'][i] = warp.quadrant
+        arr_out['order'][i] = warp.order
+        coeff = np.zeros(15, dtype=np.float64)
+        coeff[0:len(warp.coeff)] = warp.coeff
+        arr_out['coeff'][i] = coeff
+        assert(np.abs(warp.xmed - int(warp.xmed)) < 0.001)
+        assert(np.abs(warp.ymed - int(warp.ymed)) < 0.001)
+        arr_out['x_ref'][i] = int(warp.xmed)
+        arr_out['y_ref'][i] = int(warp.ymed)
+        arr_out['chi2_mean'][i] = warp.chi2mean
+        arr_out['chi2_mean_raw'][i] = warp.chi2mean_raw
+        arr_out['npix'][i] = warp.npix
+        
+
+    return arr_out
