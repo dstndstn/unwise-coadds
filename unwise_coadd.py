@@ -15,7 +15,7 @@ from scipy.ndimage.morphology import binary_dilation
 from scipy.ndimage.measurements import label, center_of_mass
 from zp_lookup import ZPLookUp
 import random
-from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table
+from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask
 
 import fitsio
 
@@ -1352,6 +1352,10 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         WISE.set(c, WISE.get(c).astype(t))
 
     ofn = prefix + '-frames.fits'
+
+    if warp_list is not None:
+        update_included_bitmask(WISE, warp_list)
+
     WISE.writeto(ofn)
     print 'Wrote', ofn
     # append warp summary table when appropriate

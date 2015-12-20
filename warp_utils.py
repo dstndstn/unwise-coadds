@@ -300,3 +300,13 @@ def gen_warp_table(warp_list):
         
 
     return arr_out
+
+def update_included_bitmask(WISE, warp_list):
+    # make the included column of WISE metadata table into a bitmask
+    # indicating which quadrants were recovered
+
+    for warp in warp_list:
+        assert(warp.quadrant != -1)
+        val = 2**(warp.quadrant)
+        # WISE input should be modified in calling scope
+        WISE.included[(WISE.scan_id == warp.scan_id) & (WISE.frame_num == warp.frame_num)] += val
