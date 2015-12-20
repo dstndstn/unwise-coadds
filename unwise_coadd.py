@@ -15,7 +15,7 @@ from scipy.ndimage.morphology import binary_dilation
 from scipy.ndimage.measurements import label, center_of_mass
 from zp_lookup import ZPLookUp
 import random
-from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp
+from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table
 
 import fitsio
 
@@ -717,6 +717,7 @@ def process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_x
                             mm = _coadd_one_round2((wi, N, scanid, qq, r1_coadd.cow1, r1_coadd.cowimg1, r1_coadd.cowimgsq1, tinyw,
                                                     plotfn, ps1, do_dsky, rchi_fraction))
                             coadd.acc(mm, delmm=delmm)
+                        warp_list.append(qq.warp)
                         print 'Recovered a quadrant !!!!' 
                     elif qq.warp is None:
                         print 'No warp attempted !!!!'
@@ -732,7 +733,7 @@ def process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_x
         else:
             return quad_rimgs
     else:
-        return coadd
+        return coadd, warp_list
 
 def get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, wi, ps, quad_num, coextent, imextent, margin=10):
     # want to calculate coextent-like and imextent-like values for an L1b 
@@ -1175,7 +1176,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     # the round 1 coadd...
     try:
         (coim,coiv,copp,con, coimb,coivb,coppb,conb,masks, cube, cosky,
-         comin,comax,cominb,comaxb
+         comin,comax,cominb,comaxb, warp_list
          )= coadd_wise(ti.coadd_id, cowcs, WISE[WISE.use & (~WISE.moon_rej)], ps, band, mp1, mp2, do_cube,
                        medfilt, plots2=plots2, do_dsky=do_dsky,
                        checkmd5=checkmd5, bgmatch=bgmatch, minmax=minmax,
@@ -1353,6 +1354,11 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     ofn = prefix + '-frames.fits'
     WISE.writeto(ofn)
     print 'Wrote', ofn
+    # append warp summary table when appropriate
+    if warp_list is not None:
+        warp_tab = gen_warp_table(warp_list)
+        print 'Appending warp summary table to ' + ofn
+        fitsio.write(ofn, warp_tab)
 
     md = tag + '-mask'
     cmd = ('cd %s && tar czf %s %s && rm -R %s' %
@@ -1923,10 +1929,11 @@ def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj, r1_coadd):
     # it will be best to compute/apply warp at time of each FirstRoundImage's creation i.e. within process_round1_quadrants
 
     # pretty sure I really do want to hardwire delete_xy_coords=True here...
-    coadd = process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=r1_coadd, delete_xy_coords=True, reference=reference, 
-                                     do_apply_warp=True, save_raw=False, coadd=coadd)
+    coadd, warp_list = process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=r1_coadd, 
+                                                delete_xy_coords=True, reference=reference, 
+                                                do_apply_warp=True, save_raw=False, coadd=coadd)
     gc.collect()
-    return coadd
+    return coadd, warp_list
 
 def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                do_cube, medfilt, plots2=False, table=True, do_dsky=False,
@@ -2251,7 +2258,9 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
         reference = ReferenceImage(coimg, coppstd, con)
         # does cowcs need to be **full** coadd WCS here ?? think so..
         zp_lookup_obj = ZPLookUp(band, poly=True)
-        coadd = recover_moon_frames(recover, coadd, reference, cowcs, zp_lookup_obj, r1_coadd)
+        coadd, warp_list = recover_moon_frames(recover, coadd, reference, cowcs, zp_lookup_obj, r1_coadd)
+    else:
+        warp_list = None # dummy return value
 
     coimg,  coinvvar,  coppstd,  con, coimgb, coinvvarb, coppstdb, conb, cube = extract_round2_outputs(coadd, tinyw)
 
@@ -2263,7 +2272,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     return (coimg,  coinvvar,  coppstd,  con,
             coimgb, coinvvarb, coppstdb, conb,
             masks, cube, sky,
-            coadd.comin, coadd.comax, coadd.cominb, coadd.comaxb)
+            coadd.comin, coadd.comax, coadd.cominb, coadd.comaxb, warp_list)
 
 def extract_round2_outputs(coadd, tinyw):
     # coadd is an object of type coaddacc

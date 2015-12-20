@@ -279,8 +279,8 @@ def gen_warp_table(warp_list):
                               ('quad_num','uint8'),
                               ('order','uint8'),
                               ('coeff','(15,)float64'),
-                              ('x_ref', 'int'),
-                              ('y_ref', 'int'),
+                              ('x_ref', 'float'),
+                              ('y_ref', 'float'),
                               ('chi2_mean', 'float32'),
                               ('chi2_mean_raw', 'float32'),
                               ('npix', 'int')])
@@ -292,10 +292,8 @@ def gen_warp_table(warp_list):
         coeff = np.zeros(15, dtype=np.float64)
         coeff[0:len(warp.coeff)] = warp.coeff
         arr_out['coeff'][i] = coeff
-        assert(np.abs(warp.xmed - int(warp.xmed)) < 0.001)
-        assert(np.abs(warp.ymed - int(warp.ymed)) < 0.001)
-        arr_out['x_ref'][i] = int(warp.xmed)
-        arr_out['y_ref'][i] = int(warp.ymed)
+        arr_out['x_ref'][i] = warp.xmed
+        arr_out['y_ref'][i] = warp.ymed
         arr_out['chi2_mean'][i] = warp.chi2mean
         arr_out['chi2_mean_raw'][i] = warp.chi2mean_raw
         arr_out['npix'][i] = warp.npix
