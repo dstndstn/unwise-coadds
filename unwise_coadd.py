@@ -147,7 +147,7 @@ class ReferenceImage():
         fitsio.write(outname, self.sigma)
 
 class QuadrantWarp():
-    def __init__(self, quadrant, coeff, xmed, ymed, chi2mean, chi2mean_raw, order, non_extreme_mask):
+    def __init__(self, quadrant, coeff, xmed, ymed, chi2mean, chi2mean_raw, order, non_extreme_mask, npix):
         self.quadrant = quadrant # this is an integer ??
         self.coeff = coeff
         self.xmed = xmed
@@ -157,6 +157,7 @@ class QuadrantWarp():
         self.non_extreme_mask = None # this is intended for debugging only
         self.order = order
         self.non_extreme_mask = non_extreme_mask
+        self.npix = int(npix) # number of pixels used in fit, including those rejected in iterative fit
 
 class FirstRoundCoadd():
     def __init__(self, coimg1, cow1, coppstd1, cowimgsq1):
@@ -1895,7 +1896,7 @@ def do_one_warp(rimg, wise, reference):
                                                                                                      x_l1b_im[non_extreme_mask], 
                                                                                                      y_l1b_im[non_extreme_mask], unc_ref, 
                                                                                                      order=order)
-    warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed, chi2_mean, chi2_mean_raw, order, non_extreme_mask)
+    warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed, chi2_mean, chi2_mean_raw, order, non_extreme_mask, npix_good)
     return warp
 
 def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj, r1_coadd):
