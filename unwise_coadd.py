@@ -1303,38 +1303,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     Iused = np.flatnonzero(WISE.use & (~WISE.moon_rej)) # hack !!!!!
     assert(len(Iused) == len(masks))
 
-    maskdir = os.path.join(outdir, tag + '-mask')
-    if not os.path.exists(maskdir):
-        os.mkdir(maskdir)
-            
-    for i,mm in enumerate(masks):
-        if mm is None:
-            continue
-
-        ii = Iused[i]
-        WISE.sky1       [ii] = mm.sky
-        WISE.sky2       [ii] = mm.dsky
-        WISE.zeropoint  [ii] = mm.zp
-        WISE.npixoverlap[ii] = mm.ncopix
-        WISE.npixpatched[ii] = mm.npatched
-        WISE.npixrchi   [ii] = mm.nrchipix
-        WISE.weight     [ii] = mm.w
-
-        if not mm.included:
-            continue
-
-        WISE.included   [ii] = 1
-
-        # Write outlier masks
-        ofn = WISE.intfn[ii].replace('-int', '')
-        ofn = os.path.join(maskdir, 'unwise-mask-' + ti.coadd_id + '-'
-                           + os.path.basename(ofn) + ('.gz' if not int_gz else ''))
-        w,h = WISE.imagew[ii],WISE.imageh[ii]
-        fullmask = np.zeros((h,w), mm.omask.dtype)
-        x0,x1,y0,y1 = WISE.imextent[ii,:]
-        fullmask[y0:y1+1, x0:x1+1] = mm.omask
-        fitsio.write(ofn, fullmask, clobber=True)
-        print 'Wrote mask', (i+1), 'of', len(masks), ':', ofn
+    parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti)
 
     WISE.delete_column('wcs')
 
@@ -1537,6 +1506,41 @@ def plot_region(r0,r1,d0,d1, ps, T, WISE, wcsfns, W, H, pixscale, margin=1.05,
         plot.write(fn)
         print 'Wrote', fn
 
+def parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti):
+    # use the list of second round masks to update the WISE metadata
+    # table and write out per-exposure outlier mask
+    maskdir = os.path.join(outdir, tag + '-mask')
+    if not os.path.exists(maskdir):
+        os.mkdir(maskdir)
+            
+    for i,mm in enumerate(masks):
+        if mm is None:
+            continue
+
+        ii = Iused[i]
+        WISE.sky1       [ii] = mm.sky
+        WISE.sky2       [ii] = mm.dsky
+        WISE.zeropoint  [ii] = mm.zp
+        WISE.npixoverlap[ii] = mm.ncopix
+        WISE.npixpatched[ii] = mm.npatched
+        WISE.npixrchi   [ii] = mm.nrchipix
+        WISE.weight     [ii] = mm.w
+
+        if not mm.included:
+            continue
+
+        WISE.included   [ii] = 1
+
+        # Write outlier masks
+        ofn = WISE.intfn[ii].replace('-int', '')
+        ofn = os.path.join(maskdir, 'unwise-mask-' + ti.coadd_id + '-'
+                           + os.path.basename(ofn) + ('.gz' if not int_gz else ''))
+        w,h = WISE.imagew[ii],WISE.imageh[ii]
+        fullmask = np.zeros((h,w), mm.omask.dtype)
+        x0,x1,y0,y1 = WISE.imextent[ii,:]
+        fullmask[y0:y1+1, x0:x1+1] = mm.omask
+        fitsio.write(ofn, fullmask, clobber=True)
+        print 'Wrote mask', (i+1), 'of', len(masks), ':', ofn
 
 def _bounce_one_round2(*A):
     try:
