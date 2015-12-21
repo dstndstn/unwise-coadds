@@ -16,7 +16,7 @@ from scipy.ndimage.measurements import label, center_of_mass
 from zp_lookup import ZPLookUp
 import random
 from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask
-from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks
+from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs
 
 import fitsio
 
@@ -166,14 +166,30 @@ class FirstRoundImage():
         del self.x_l1b, self.y_l1b, self.x_coadd, self.y_coadd
         self.x_l1b, self.y_l1b, self.x_coadd, self.y_coadd = None, None, None, None
 
-def get_coadd_tile_wcs(ra, dec, W=2048, H=2048, pixscale=2.75):
-    '''
-    Returns a Tan WCS object at the given RA,Dec center, axis aligned, with the
-    given pixel W,H and pixel scale in arcsec/pixel.
-    '''
-    cowcs = Tan(ra, dec, (W+1)/2., (H+1)/2.,
-                -pixscale/3600., 0., 0., pixscale/3600., W, H)
-    return cowcs
+class SecondRoundImage():
+    def __init__(self):
+        self.sky = None
+        self.dsky = None
+        self.zp = None
+        self.ncopix = None
+        self.npatched = None
+        self.nrchipix = None
+        self.w = None
+        self.included = None
+        self.omask = None
+
+        self.coslc = None
+        self.coimgsq = None
+        self.coimg = None
+        self.cow = None
+        self.con = None
+        self.rmask2 = None
+
+        # only for plotting ??
+        self.rchi = None
+        self.badpix = None
+        self.rimg_orig = None
+        self.rmask_orig = None
 
 def walk_wcs_boundary(wcs, step=1024, margin=0):
     '''
@@ -1509,7 +1525,7 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
 
     print 'Coadd round 2, image', (ri+1), 'of', N
     t00 = Time()
-    mm = Duck()
+    mm = SecondRoundImage()
     mm.npatched = rr.npatched
     mm.ncopix   = rr.ncopix
     mm.sky      = rr.sky

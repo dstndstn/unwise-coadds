@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from astrometry.util.util import Tan
 
 def tile_to_radec(tileid):
     assert(len(tileid) == 8)
@@ -56,3 +57,12 @@ def get_epoch_breaks(mjds):
     print 'Defined epoch breaks', ebreaks
     print 'Found', len(ebreaks), 'epoch breaks'
     return ebreaks
+
+def get_coadd_tile_wcs(ra, dec, W=2048, H=2048, pixscale=2.75):
+    '''
+    Returns a Tan WCS object at the given RA,Dec center, axis aligned, with the
+    given pixel W,H and pixel scale in arcsec/pixel.
+    '''
+    cowcs = Tan(ra, dec, (W+1)/2., (H+1)/2.,
+                -pixscale/3600., 0., 0., pixscale/3600., W, H)
+    return cowcs
