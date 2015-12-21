@@ -310,3 +310,20 @@ def update_included_bitmask(WISE, warp_list):
         val = 2**(warp.quadrant)
         # WISE input should be modified in calling scope
         WISE.included[(WISE.scan_id == warp.scan_id) & (WISE.frame_num == warp.frame_num)] += val
+
+def parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti):
+    # for now, don't worry about writing the masks and just
+    # appropriately update the WISE metadata table
+    
+    for qmask in qmasks:
+        # find relevant row in metadata table
+        exp_mask = [(WISE.scan_id == qmask.scan_id) & (WISE.frame_num == qmask.frame_num)]
+        assert(np.sum(exp_mask) == 1)
+
+        WISE.sky1[exp_mask] = qmask.sky
+        WISE.sky2[exp_mask] = qmask.dsky
+        WISE.zeropoint[exp_mask] = qmask.zp
+        WISE.npixoverlap[exp_mask] += qmask.ncopix
+        WISE.npixpatched[exp_mask] += qmask.npatched
+        WISE.npixrchi[exp_mask] += qmask.nrchipix
+        WISE.weight[exp_mask] = qmask.w

@@ -15,7 +15,7 @@ from scipy.ndimage.morphology import binary_dilation
 from scipy.ndimage.measurements import label
 from zp_lookup import ZPLookUp
 import random
-from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask
+from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask, parse_write_quadrant_masks
 from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs
 
 import fitsio
@@ -181,6 +181,10 @@ class SecondRoundImage():
         self.cow = None
         self.con = None
         self.rmask2 = None
+
+        # optional
+        self.scan_id = None
+        self.frame_num = None
 
         # only for plotting ??
         self.rchi = None
@@ -676,6 +680,8 @@ def process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_x
                             mm = _coadd_one_round2((wi, N, scanid, qq, r1_coadd.cow1, r1_coadd.cowimg1, r1_coadd.cowimgsq1, tinyw,
                                                     plotfn, ps1, do_dsky, rchi_fraction))
                             coadd.acc(mm, delmm=delmm)
+                            mm.scan_id = wise.scan_id
+                            mm.frame_num = wise.frame_num
                             r2_masks.append(mm)
                         warp_list.append(qq.warp)
                         print 'Recovered a quadrant !!!!' 
@@ -1264,6 +1270,10 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     assert(len(Iused) == len(masks))
 
     parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti)
+
+    if recover_moon:
+        print 'updating metadata based on quadrant SecondRoundImage objects'
+        parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti)
 
     WISE.delete_column('wcs')
 
