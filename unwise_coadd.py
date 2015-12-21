@@ -164,7 +164,7 @@ class FirstRoundImage():
         self.x_l1b, self.y_l1b, self.x_coadd, self.y_coadd = None, None, None, None
 
 class SecondRoundImage():
-    def __init__(self):
+    def __init__(self, quadrant=-1):
         self.sky = None
         self.dsky = None
         self.zp = None
@@ -185,6 +185,7 @@ class SecondRoundImage():
         # optional
         self.scan_id = None
         self.frame_num = None
+        self.quadrant = quadrant
 
         # only for plotting ??
         self.rchi = None
@@ -1534,7 +1535,7 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
 
     print 'Coadd round 2, image', (ri+1), 'of', N
     t00 = Time()
-    mm = SecondRoundImage()
+    mm = SecondRoundImage(quadrant=rr.quadrant)
     mm.npatched = rr.npatched
     mm.ncopix   = rr.ncopix
     mm.sky      = rr.sky
