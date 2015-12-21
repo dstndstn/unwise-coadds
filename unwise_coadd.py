@@ -12,7 +12,7 @@ import tempfile
 import datetime
 import gc
 from scipy.ndimage.morphology import binary_dilation
-from scipy.ndimage.measurements import label, center_of_mass
+from scipy.ndimage.measurements import label
 from zp_lookup import ZPLookUp
 import random
 from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask
@@ -71,9 +71,6 @@ def get_l1b_file(basedir, scanid, frame, band):
     if int_gz:
         fname += '.gz'
     return fname
-
-class Duck():
-    pass
 
 class ReferenceImage():
     def __init__(self, image, std, n):
@@ -650,6 +647,7 @@ def process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_x
     do_check_md5 = False # hack
 
     warp_list = [] # list of QuadrantWarp objects for successfully warped quadrants
+    r2_masks = [] # list of per-quadrant SecondRoundImage objects for successfully warped quadrants
     print "Creating per-quadrant FirstRoundImage objects"
     for wi, wise in enumerate(WISE):
         # do the usual call to _coadd_one_round1 to get a typical FirstRoundImage
@@ -678,6 +676,7 @@ def process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_x
                             mm = _coadd_one_round2((wi, N, scanid, qq, r1_coadd.cow1, r1_coadd.cowimg1, r1_coadd.cowimgsq1, tinyw,
                                                     plotfn, ps1, do_dsky, rchi_fraction))
                             coadd.acc(mm, delmm=delmm)
+                            r2_masks.append(mm)
                         warp_list.append(qq.warp)
                         print 'Recovered a quadrant !!!!' 
                     elif qq.warp is None:
@@ -694,7 +693,7 @@ def process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_x
         else:
             return quad_rimgs
     else:
-        return coadd, warp_list
+        return coadd, warp_list, r2_masks
 
 def get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, wi, ps, quad_num, coextent, imextent, margin=10):
     # want to calculate coextent-like and imextent-like values for an L1b 
@@ -1137,7 +1136,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     # the round 1 coadd...
     try:
         (coim,coiv,copp,con, coimb,coivb,coppb,conb,masks, cube, cosky,
-         comin,comax,cominb,comaxb, warp_list
+         comin,comax,cominb,comaxb, warp_list, qmasks
          )= coadd_wise(ti.coadd_id, cowcs, WISE[WISE.use & (~WISE.moon_rej)], ps, band, mp1, mp2, do_cube,
                        medfilt, plots2=plots2, do_dsky=do_dsky,
                        checkmd5=checkmd5, bgmatch=bgmatch, minmax=minmax,
@@ -1898,11 +1897,11 @@ def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj, r1_coadd):
     # it will be best to compute/apply warp at time of each FirstRoundImage's creation i.e. within process_round1_quadrants
 
     # pretty sure I really do want to hardwire delete_xy_coords=True here...
-    coadd, warp_list = process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=r1_coadd, 
-                                                delete_xy_coords=True, reference=reference, 
-                                                do_apply_warp=True, save_raw=False, coadd=coadd)
+    coadd, warp_list, qmasks = process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=r1_coadd, 
+                                                        delete_xy_coords=True, reference=reference, 
+                                                        do_apply_warp=True, save_raw=False, coadd=coadd)
     gc.collect()
-    return coadd, warp_list
+    return coadd, warp_list, qmasks
 
 def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                do_cube, medfilt, plots2=False, table=True, do_dsky=False,
@@ -2227,9 +2226,10 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
         reference = ReferenceImage(coimg, coppstd, con)
         # does cowcs need to be **full** coadd WCS here ?? think so..
         zp_lookup_obj = ZPLookUp(band, poly=True)
-        coadd, warp_list = recover_moon_frames(recover, coadd, reference, cowcs, zp_lookup_obj, r1_coadd)
+        coadd, warp_list, qmasks = recover_moon_frames(recover, coadd, reference, cowcs, zp_lookup_obj, r1_coadd)
     else:
         warp_list = None # dummy return value
+        qmasks = None # dummy return value
 
     coimg,  coinvvar,  coppstd,  con, coimgb, coinvvarb, coppstdb, conb, cube = extract_round2_outputs(coadd, tinyw)
 
@@ -2241,7 +2241,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     return (coimg,  coinvvar,  coppstd,  con,
             coimgb, coinvvarb, coppstdb, conb,
             masks, cube, sky,
-            coadd.comin, coadd.comax, coadd.cominb, coadd.comaxb, warp_list)
+            coadd.comin, coadd.comax, coadd.cominb, coadd.comaxb, warp_list, qmasks)
 
 def extract_round2_outputs(coadd, tinyw):
     # coadd is an object of type coaddacc
