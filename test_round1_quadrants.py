@@ -27,9 +27,12 @@ def add_wcs_column(WISE):
 def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None, band=1, only_good_chi2=False):
 # choose a name for file from which WISE will be read
 #    tabname = '/global/cscratch1/sd/ameisner/unwise_test_tiles/foo20/e0_moon/343/3433p000/unwise-3433p000-w'+str(band)+'-frames.fits'
-    tabname = '/global/cscratch1/sd/ameisner/unwise_test_tiles/foo63/moon/343/3433p000/unwise-3433p000-w'+str(band)+'-frames.fits'
-# this implies a choice of coadd..
-    coaddname = '/global/cscratch1/sd/ameisner/unwise_test_tiles/foo63/moon/343/3433p000/unwise-3433p000-w'+str(band)+'-img-m.fits'
+    if band == 1:
+        tabname = '/global/cscratch1/sd/ameisner/unwise_test_tiles/foo63/moon/343/3433p000/unwise-3433p000-w1-frames.fits'
+        coaddname = '/global/cscratch1/sd/ameisner/unwise_test_tiles/foo63/moon/343/3433p000/unwise-3433p000-w1-img-m.fits'
+    else:
+        tabname = '/global/cscratch1/sd/ameisner/unwise_test_tiles/foo109/moon/343/3433p000/unwise-3433p000-w2-frames.fits'
+        coaddname = '/global/cscratch1/sd/ameisner/unwise_test_tiles/foo109/moon/343/3433p000/unwise-3433p000-w2-img-m.fits'
 
 # read (or create) the coadd header WCS
     cowcs = Tan(coaddname)
@@ -84,7 +87,7 @@ def plot_quadrant_results(nmax=20, moon_rej=True, band=1):
         if warp is None:
             print 'no warp was computed'
         else:
-            print 'warp was computed !!!!!!!!!!!!!!!!!!!!!!  order = ' + str(warp.order)
+            print 'warp was computed !!!!!!!!!!!!!!!!!!!!!!  order = ' + str(warp.order) + ', ' + warp.scan_id + ' , ' + str(warp.frame_num)
         plt.figure(figsize=(16,10))
    
         plt.subplot(2,4,2)

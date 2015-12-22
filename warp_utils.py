@@ -213,7 +213,7 @@ class WarpMetaParameters:
         self.band = band
 
         # worst goodness-of-fit for a quadrant to be considered recovered
-        self.chi2_mean_thresh = (2.5 if (band == 1) else 3.25)
+        self.chi2_mean_thresh = 2.5 # could make this band-dependent
 
         # these values are zero indexed !!
         #                   Q1    Q2   Q3    Q4
