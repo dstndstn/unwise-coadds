@@ -44,27 +44,31 @@ def poly_design_matrix(dx, dy, order):
                           dy) )
     # if order > 1 construct and column stack the second order terms
     if (order > 1):
+        dx2 = (dx*dx)
+        dy2 = (dy*dy)
         X = np.column_stack( (X,
                               dx*dy,
-                              dx**2, 
-                              dy**2) )
+                              dx2, 
+                              dy2) )
 
     # if order > 2 construct and column stack the third order terms
     if (order > 2):
+        dx3 = (dx2*dx)
+        dy3 = (dy2*dy)
         X = np.column_stack( (X,
-                              (dx**2)*dy,
-                              (dy**2)*dx,
-                              dx**3,
-                              dy**3) )
+                              (dx2)*dy,
+                              (dy2)*dx,
+                              dx3,
+                              dy3) )
 
     # if order > 3 construct and column stack the fourth order terms
     if (order > 3):
         X = np.column_stack( (X,
-                              (dx**2)*(dy**2), 
-                              (dx**3)*dy,
-                              (dy**3)*dx,
-                              dx**4,
-                              dy**4) )
+                              (dx2)*(dy2), 
+                              (dx3)*dy,
+                              (dy3)*dx,
+                              dx2*dx2,
+                              dy2*dy2) )
     return X
 
 def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
