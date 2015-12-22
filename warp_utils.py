@@ -391,3 +391,22 @@ def lookup_meta_quadrant(scan_id, frame_num, quad_num, WISE):
         imextent = row.imextent_q4
 
     return imextent, intfn
+
+class RecoveryStats():
+    def __init__(self, n_attempted, n_succeeded, n_skipped):
+        self.n_attempted = n_attempted
+        self.n_succeeded = n_succeeded
+        self.n_skipped = n_skipped
+
+    def to_recarray(self):
+        nrow = 1
+
+        arr_out = np.zeros((nrow,), 
+                           dtype=[('n_attempted','int'),
+                                  ('n_succeeded','int'),
+                                  ('n_skipped','int')])
+        arr_out['n_attempted'][0] = self.n_attempted
+        arr_out['n_succeeded'][0] = self.n_succeeded
+        arr_out['n_skipped'][0] = self.n_skipped
+
+        return arr_out
