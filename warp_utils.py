@@ -14,20 +14,24 @@ def evaluate_warp_poly(coeff, dx, dy):
                        (coeff[2])*dy )
 
     if order > 1:
+        dx2 = (dx*dx)
+        dy2 = (dy*dy)
         warp_vals += ( (coeff[3])*(dx*dy) + \
-                       (coeff[4])*(dx**2) + \
-                       (coeff[5])*(dy**2) )
+                       (coeff[4])*dx2 + \
+                       (coeff[5])*dy2 )
     if order > 2:
-        warp_vals += ( (coeff[6])*(dx**2)*dy + \
-                       (coeff[7])*(dy**2)*dx + \
-                       (coeff[8])*(dx**3) + \
-                       (coeff[9])*(dy**3) )
+        dx3 = (dx2*dx)
+        dy3 = (dy2*dy)
+        warp_vals += ( (coeff[6])*(dx2)*dy + \
+                       (coeff[7])*(dy2)*dx + \
+                       (coeff[8])*dx3 + \
+                       (coeff[9])*dy3 )
     if order > 3:
-        warp_vals += ( (coeff[10])*(dx**2)*(dy**2) + \
-                       (coeff[11])*(dx**3)*dy + \
-                       (coeff[12])*(dy**3)*dx + \
-                       (coeff[13])*(dx**4) + \
-                       (coeff[14])*(dy**4) )
+        warp_vals += ( (coeff[10])*(dx2)*(dy2) + \
+                       (coeff[11])*(dx3)*dy + \
+                       (coeff[12])*(dy3)*dx + \
+                       (coeff[13])*(dx2*dx2) + \
+                       (coeff[14])*(dy2*dy2) )
     return warp_vals
 
 def poly_design_matrix(dx, dy, order):
