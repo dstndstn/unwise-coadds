@@ -129,17 +129,15 @@ def render_warp(rimg_quad):
     assert(rimg_quad.quadrant != -1)
 
     sh = rimg_quad.rimg.shape
-    x_l1b_im = np.zeros(sh)
-    y_l1b_im = np.zeros(sh)
-
-    x_l1b_im[rimg_quad.y_coadd, rimg_quad.x_coadd] = rimg_quad.x_l1b
-    y_l1b_im[rimg_quad.y_coadd, rimg_quad.x_coadd] = rimg_quad.y_l1b
 
     warp = rimg_quad.warp
     if warp is not None:
-        dx = x_l1b_im - warp.xmed
-        dy = y_l1b_im - warp.ymed
-        warp_image = evaluate_warp_poly(warp.coeff, dx, dy)
+        dx = rimg_quad.x_l1b - warp.xmed
+        dy = rimg_quad.y_l1b - warp.ymed
+        warp_image = np.zeros(sh)
+
+        warp_vals = evaluate_warp_poly(warp.coeff, dx, dy)
+        warp_image[rimg_quad.y_coadd, rimg_quad.x_coadd] = warp_vals
         warp_image *= (rimg_quad.rmask != 0)
     else:
         # not sure if this is the right thing to do
