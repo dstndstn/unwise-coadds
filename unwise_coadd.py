@@ -685,11 +685,11 @@ def process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_x
                             mm.frame_num = wise.frame_num
                             r2_masks.append(mm)
                         warp_list.append(qq.warp)
-                        print 'Recovered a quadrant !!!!' 
+                        print 'Recovered a quadrant.'
                     elif qq.warp is None:
-                        print 'No warp attempted !!!!'
+                        print 'No warp attempted.'
                     else:
-                        print 'Quadrant recovery failed !!!!'
+                        print 'Quadrant recovery failed.'
         del quadrants_this_exp
         del rr
 
@@ -1273,7 +1273,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti)
 
     if recover_moon:
-        print 'updating metadata based on quadrant SecondRoundImage objects'
+        print 'Updating metadata based on quadrant SecondRoundImage objects.'
         parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti)
 
     WISE.delete_column('wcs')

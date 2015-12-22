@@ -1,5 +1,7 @@
 import numpy as np
 import time
+import os
+import fitsio
 
 def evaluate_warp_poly(coeff, dx, dy):
     par = WarpMetaParameters()
@@ -312,9 +314,8 @@ def update_included_bitmask(WISE, warp_list):
         WISE.included[(WISE.scan_id == warp.scan_id) & (WISE.frame_num == warp.frame_num)] += val
 
 def parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti):
-    # for now, don't worry about writing the masks and just
+
     # appropriately update the WISE metadata table
-    
     for qmask in qmasks:
         # find relevant row in metadata table
         exp_mask = [(WISE.scan_id == qmask.scan_id) & (WISE.frame_num == qmask.frame_num)]
@@ -327,3 +328,66 @@ def parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti):
         WISE.npixpatched[exp_mask] += qmask.npatched
         WISE.npixrchi[exp_mask] += qmask.nrchipix
         WISE.weight[exp_mask] = qmask.w
+
+    # call merge_write_quadrant_masks to actually write the bitmask images
+    merge_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti)
+
+def merge_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti):
+    # figure out the list of unique scan_id, frame_num pairs
+    # loop over each (scan_id, frame_num) pair
+
+    if len(qmasks) == 0:
+        return
+
+    expid = [(qmask.scan_id + str(qmask.frame_num).zfill(3)) for qmask in qmasks]
+    expid = np.array(expid)
+    expid_u = np.unique(expid)
+
+    width = int(np.max(WISE.imagew))
+    height = int(np.max(WISE.imageh))
+    masktype = qmasks[0].omask.dtype
+
+    maskdir = os.path.join(outdir, tag + '-mask')
+    if not os.path.exists(maskdir):
+        os.mkdir(maskdir)
+
+    for i, id_u in enumerate(expid_u):
+        w_id = (np.where(expid == id_u))[0]
+        nquad = len(w_id) # number of quadrants recovered from this exposure
+        assert((nquad > 0) and (nquad <= 4))
+
+        fullmask = np.zeros((height, width), masktype) 
+        intfn = ''
+        for ix in w_id:
+            qmask = qmasks[ix]
+            # figure out the image extent for the relevant quadrant
+            imextent_q, intfn = lookup_meta_quadrant(qmask.scan_id, qmask.frame_num, qmask.quadrant, WISE)
+            # fullmask[some indices] = qmask.omask
+            x0,x1,y0,y1 = imextent_q
+            fullmask[y0:y1+1, x0:x1+1] = qmask.omask
+
+        # construct file name
+        ofn = intfn.replace('-int', '')
+        ofn = os.path.join(maskdir, 'unwise-mask-' + ti.coadd_id + '-'
+                           + os.path.basename(ofn) + ('.gz' if not int_gz else ''))
+        assert(not os.path.exists(ofn))
+
+        fitsio.write(ofn, fullmask)
+        print 'Wrote warp recovery mask', (i+1), 'of', len(expid_u), ':', ofn
+
+def lookup_meta_quadrant(scan_id, frame_num, quad_num, WISE):
+    # meant to be helper for merge_write_quadrant_masks function above
+    row = WISE[(WISE.scan_id == scan_id) & (WISE.frame_num == frame_num)][0]
+
+    intfn = (row.intfn).replace(' ','')
+
+    if quad_num == 1:
+        imextent = row.imextent_q1
+    elif quad_num == 2:
+        imextent = row.imextent_q2
+    elif quad_num == 3:
+        imextent = row.imextent_q3
+    elif quad_num == 4:
+        imextent = row.imextent_q4
+
+    return imextent, intfn
