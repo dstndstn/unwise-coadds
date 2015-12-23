@@ -1856,7 +1856,7 @@ def binimg(img, b):
     return (reduce(np.add, [img[i/b:hh:b, i%b:ww:b] for i in range(b*b)]) /
             float(b*b))
 
-def do_one_warp(rimg, wise, reference, debug=False):
+def do_one_warp(rimg, wise, reference, debug=False, do_rebin=False):
     # return value needs to somehow indicate whether the warp
     # succeeded or failed
     assert(rimg.quadrant != -1)
@@ -1890,7 +1890,6 @@ def do_one_warp(rimg, wise, reference, debug=False):
     x_l1b_im[rimg.y_coadd, rimg.x_coadd] = rimg.x_l1b
     y_l1b_im[rimg.y_coadd, rimg.x_coadd] = rimg.y_l1b
 
-    do_rebin = False # make this an optional input later
     if not do_rebin:
         pix_l1b_quad = rimg.rimg[non_extreme_mask]
         pix_ref = imref[non_extreme_mask]
