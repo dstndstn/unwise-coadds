@@ -93,7 +93,7 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
         X = poly_design_matrix(dx, dy, order)
 
         t0 = time.time()
-        coeff, __, ___, ____ = np.linalg.lstsq(X, diff)
+        coeff = np.linalg.lstsq(X, diff)[0]
         if verbose: print (time.time()-t0)
 
         pred = np.dot(X, coeff)
@@ -101,11 +101,12 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
 
         # try to mimic hogg_iter_linfit
         sig_thresh = 3.
-        ms  = np.mean(resid**2)
-        isgood = ((resid**2) < (sig_thresh**2)*ms)
+        resid2 = (resid**2)
+        ms  = np.mean(resid2)
+        isgood = (resid2 < (sig_thresh**2)*ms)
 
         # redo the fit with outliers removed
-        coeff, __, ___, ____ = np.linalg.lstsq(X[isgood], diff[isgood])
+        coeff = np.linalg.lstsq(X[isgood], diff[isgood])[0]
         pred = np.dot(X, coeff)
     else:
         # zeroth order case
