@@ -66,3 +66,8 @@ def get_coadd_tile_wcs(ra, dec, W=2048, H=2048, pixscale=2.75):
     cowcs = Tan(ra, dec, (W+1)/2., (H+1)/2.,
                 -pixscale/3600., 0., 0., pixscale/3600., W, H)
     return cowcs
+
+def _rebin(a, shape):
+    # stolen from stackoverflow ...
+    sh = shape[0],a.shape[0]//shape[0],shape[1],a.shape[1]//shape[1]
+    return a.reshape(sh).mean(-1).mean(1)

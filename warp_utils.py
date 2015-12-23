@@ -2,6 +2,7 @@ import numpy as np
 import time
 import os
 import fitsio
+from unwise_utils import _rebin
 
 def evaluate_warp_poly(coeff, dx, dy):
     par = WarpMetaParameters()
@@ -417,3 +418,45 @@ class RecoveryStats():
         arr_out['n_skipped'][0] = self.n_skipped
 
         return arr_out
+
+def pad_rebin_weighted(images, mask, binfac=2):
+    # pad a set of images so that it can be rebinned by integer factor, then 
+    # rebin it, images input is a list of 2d numpy arrays
+
+    # mask should be just zeros and ones
+
+    # only binfac = 2 supported right now, could add an assert for that ..
+
+    sh = images[0].shape
+
+    pad_x = sh[1] % 2
+    pad_y = sh[0] % 2
+    sh_pad = (sh[0] + pad_y, sh[1] + pad_x)
+    sh_reb = (sh_pad[0] // binfac, sh_pad[1] // binfac)
+
+    if pad_x or pad_y:
+    # pad the mask
+        mask_pad = np.zeros(sh_pad, dtype=float) # want float during averaging
+        mask_pad[0:sh[0], 0:sh[1]] = mask
+    else:
+        mask_pad = mask
+
+    # calculate rebinned weight using the mask
+    mask_reb = _rebin(mask_pad, sh_reb)
+
+    # loop over the images
+
+    images_out = []
+    for im in images:
+        if pad_x or pad_y:
+            im_pad = np.zeros(sh_pad)
+            im_pad[0:sh[0], 0:sh[1]] = im
+        else:
+            im_pad = im
+    #     rebin image*(padded mask)
+        im_reb = _rebin(im_pad*mask_pad, sh_reb)
+    #     divide by (rebinned_weight + (rebinned_weight == 0))
+        im_reb = im_reb / (mask_reb + (mask_reb == 0).astype('int'))
+        images_out.append(im_reb) # slow ?
+    
+    return images_out, mask_reb

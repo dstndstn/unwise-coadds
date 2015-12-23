@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-
+from time import time as _time
 import matplotlib
 if __name__ == '__main__':
     matplotlib.use('Agg')
@@ -15,7 +15,7 @@ from scipy.ndimage.morphology import binary_dilation
 from scipy.ndimage.measurements import label
 from zp_lookup import ZPLookUp
 import random
-from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask, parse_write_quadrant_masks, RecoveryStats
+from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask, parse_write_quadrant_masks, RecoveryStats, pad_rebin_weighted
 from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs
 
 import fitsio
@@ -1875,7 +1875,7 @@ def do_one_warp(rimg, wise, reference, debug=False):
     if order is None:
         print 'Too few pixels :  ' + str(npix_good) + ', not computing warp'
         return None
-
+    _t0 = _time()
     imref, sigref, nref = reference.extract_cutout(rimg)
 
     # assert that imref has same shape as rimg.rimg
@@ -1884,24 +1884,44 @@ def do_one_warp(rimg, wise, reference, debug=False):
     # the latter should happen exceptionally rarely or never ...
     non_extreme_mask = mask_extreme_pix(imref, ignore=((rimg.rmask != 3) | (nref == 0)))
 
-    pix_l1b_quad = rimg.rimg[non_extreme_mask]
-    pix_ref = imref[non_extreme_mask]
-    unc_ref = sigref[non_extreme_mask]
-
     x_l1b_im = np.zeros(rimg.rimg.shape)
     y_l1b_im = np.zeros(rimg.rimg.shape)
 
     x_l1b_im[rimg.y_coadd, rimg.x_coadd] = rimg.x_l1b
     y_l1b_im[rimg.y_coadd, rimg.x_coadd] = rimg.y_l1b
 
-    # fix the fact that x_l1b_quad is both an input and output here ...
+    do_rebin = False # make this an optional input later
+    if not do_rebin:
+        pix_l1b_quad = rimg.rimg[non_extreme_mask]
+        pix_ref = imref[non_extreme_mask]
+        unc_ref = sigref[non_extreme_mask]
+
+        x_fit = x_l1b_im[non_extreme_mask]
+        y_fit = y_l1b_im[non_extreme_mask]
+    else:
+        binfac = 2
+        images_out, mask_reb = pad_rebin_weighted([rimg.rimg, imref, x_l1b_im, y_l1b_im, sigref], 
+                                                  non_extreme_mask.astype('byte'), binfac=binfac)
+        goodmask = [mask_reb > 0.5]
+        pix_l1b_quad = (images_out[0])[goodmask]
+        pix_ref = (images_out[1])[goodmask]
+        x_fit = (images_out[2])[goodmask]
+        y_fit = (images_out[3])[goodmask]
+        unc_ref = (images_out[4])[goodmask]/(binfac*np.sqrt(mask_reb[goodmask])) # need to adjust unc_ref to account for binning
+
+    # some of these outputs are never used ...
+    t0 = _time()
     coeff, xmed, ymed, x_l1b_quad, y_l1b_quad, isgood, chi2_mean, chi2_mean_raw, pred = compute_warp(pix_l1b_quad, pix_ref, 
-                                                                                                     x_l1b_im[non_extreme_mask], 
-                                                                                                     y_l1b_im[non_extreme_mask], unc_ref, 
+                                                                                                     x_fit, 
+                                                                                                     y_fit, unc_ref, 
                                                                                                      order=order)
+    dt = _time() - t0
+    print 'time to fit warp = ' + str(dt) + ' seconds, number of pixels = ' + str(npix_good)
     warp = QuadrantWarp(rimg.quadrant, coeff, xmed, ymed, chi2_mean, chi2_mean_raw, 
                         order, non_extreme_mask, npix_good, wise.scan_id, wise.frame_num, 
                         debug=debug)
+    _dt = _time() - _t0
+    print 'total time in do_one_warp ' + str(_dt) + ' seconds, number of pixels = ' +str(npix_good)
     return warp
 
 def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj, r1_coadd):
