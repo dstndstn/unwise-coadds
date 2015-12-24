@@ -280,7 +280,7 @@ class WarpMetaParameters:
             return 4 # fourth order
 
     def get_chi2_fac(self, binfac):
-        facs = {1 : 1.0, 2 : 1.315}
+        facs = {1 : 1.0, 2 : 1.315, 4 : 1.0} # binfac=4 value 1.0 is a dummy
         return facs[binfac]
 
 def gen_warp_table(warp_list):
@@ -427,17 +427,21 @@ class RecoveryStats():
         return arr_out
 
 def pad_rebin_weighted(images, mask, binfac=2):
-    # pad a set of images so that it can be rebinned by integer factor, then 
-    # rebin it, images input is a list of 2d numpy arrays
+    # pad a set of images so that each can be rebinned by integer binfac 
+    # then do the rebinning; images input is a list of 2d numpy arrays
 
     # mask should be just zeros and ones
 
-    # only binfac = 2 supported right now, could add an assert for that ..
+    # only binfac = 2 tested so far
 
     sh = images[0].shape
 
-    pad_x = sh[1] % 2
-    pad_y = sh[0] % 2
+    spill_x = sh[1] % binfac
+    spill_y = sh[0] % binfac
+
+    pad_x = ((binfac-spill_x) if spill_x else 0)
+    pad_y = ((binfac-spill_y) if spill_y else 0)
+
     sh_pad = (sh[0] + pad_y, sh[1] + pad_x)
     sh_reb = (sh_pad[0] // binfac, sh_pad[1] // binfac)
 

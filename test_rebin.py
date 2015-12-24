@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import time
 import numpy as np
 
-def test_pad_rebin(xmin=0,xmax=500,ymin=0,ymax=500):
+def test_pad_rebin(xmin=0,xmax=500,ymin=0,ymax=500, binfac=2):
     # arbitrarily choose some coadd image to use as a testbed
     fname = '/global/cscratch1/sd/ameisner/unwise-coadds/fulldepth_zp/343/3433p000/unwise-3433p000-w1-img-u.fits'
 
@@ -23,11 +23,8 @@ def test_pad_rebin(xmin=0,xmax=500,ymin=0,ymax=500):
     msk = warp_utils.mask_extreme_pix(im)
 
     t0 = time.time()
-    rebinned_images, rebinned_mask = warp_utils.pad_rebin_weighted([im,x,y], msk, binfac=2)
+    rebinned_images, rebinned_mask = warp_utils.pad_rebin_weighted([im,x,y], msk, binfac=binfac)
     dt = time.time()-t0
     print str(dt) + ' seconds !!!!!!!!!'
 
     return im, rebinned_images, rebinned_mask
-
-    # call the routine that i actually want to test
-#    pad_rebin_weighted(images, mask, binfac=2)
