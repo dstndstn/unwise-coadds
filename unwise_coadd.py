@@ -863,7 +863,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
               ps, wishlist, outdir, mp1, mp2, do_cube, plots2,
               frame0, nframes, force, medfilt, maxmem, do_dsky, checkmd5,
               bgmatch, center, minmax, rchi_fraction, do_cube1, epoch,
-              before, after, recover_moon, force_outdir=False, just_image=False):
+              before, after, recover_moon, do_rebin, force_outdir=False, just_image=False):
     '''
     Create coadd for one tile & band.
     '''
@@ -1157,7 +1157,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
          )= coadd_wise(ti.coadd_id, cowcs, WISE[WISE.use & (~WISE.moon_rej)], ps, band, mp1, mp2, do_cube,
                        medfilt, plots2=plots2, do_dsky=do_dsky,
                        checkmd5=checkmd5, bgmatch=bgmatch, minmax=minmax,
-                       rchi_fraction=rchi_fraction, do_cube1=do_cube1, recover=recover)
+                       rchi_fraction=rchi_fraction, do_cube1=do_cube1, recover=recover, do_rebin=do_rebin)
     except:
         print 'coadd_wise failed:'
         import traceback
@@ -1928,7 +1928,7 @@ def do_one_warp(rimg, wise, reference, debug=False, do_rebin=False):
     print 'total time in do_one_warp ' + str(_dt) + ' seconds, number of pixels = ' +str(npix_good)
     return warp
 
-def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj, r1_coadd):
+def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj, r1_coadd, do_rebin=True):
     # coadd is a coaddacc object, which should already have accumulated
     # the Moon-free exposures
     # reference holds relevant info about reference coadd, and is a ReferenceImage object
@@ -1946,14 +1946,14 @@ def recover_moon_frames(WISE, coadd, reference, cowcs, zp_lookup_obj, r1_coadd):
     # pretty sure I really do want to hardwire delete_xy_coords=True here...
     coadd, warp_list, qmasks, rstats = process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=r1_coadd, 
                                                                 delete_xy_coords=True, reference=reference, 
-                                                                do_apply_warp=True, save_raw=False, coadd=coadd)
+                                                                do_apply_warp=True, save_raw=False, coadd=coadd, do_rebin=do_rebin)
     gc.collect()
     return coadd, warp_list, qmasks, rstats
 
 def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                do_cube, medfilt, plots2=False, table=True, do_dsky=False,
                checkmd5=False, bgmatch=False, minmax=False, rchi_fraction=0.01, do_cube1=False, 
-               recover=None):
+               recover=None, do_rebin=True):
     L = 3
     W = cowcs.get_width()
     H = cowcs.get_height()
@@ -2273,7 +2273,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
         reference = ReferenceImage(coimg, coppstd, con)
         # does cowcs need to be **full** coadd WCS here ?? think so..
         zp_lookup_obj = ZPLookUp(band, poly=True)
-        coadd, warp_list, qmasks, rstats = recover_moon_frames(recover, coadd, reference, cowcs, zp_lookup_obj, r1_coadd)
+        coadd, warp_list, qmasks, rstats = recover_moon_frames(recover, coadd, reference, cowcs, zp_lookup_obj, r1_coadd, do_rebin=do_rebin)
     else:
         warp_list = None # dummy return value
         qmasks = None # dummy return value
@@ -2901,6 +2901,8 @@ def main():
                       help='When making Moon cut, determine threshold using all available frames regardless of epoch?')
     parser.add_option('--recover_moon', dest='recover_moon', action='store_true', default=False,
                       help='Attempt to recover Moon-contaminated exposures?')
+    parser.add_option('--no_warp_rebin', dest='do_rebin', action='store_false', default=True,
+                      help='Turn of rebinning when fitting per-quadrant polynomial warps.')
 
     opt,args = parser.parse_args()
 
@@ -3089,7 +3091,7 @@ def main():
                      opt.cube, opt.plots2, opt.frame0, opt.nframes, opt.force,
                      medfilt, opt.maxmem, opt.dsky, opt.md5, opt.bgmatch,
                      opt.center, opt.minmax, opt.rchi_fraction, opt.cube1,
-                     opt.epoch, opt.before, opt.after, opt.recover_moon):
+                     opt.epoch, opt.before, opt.after, opt.recover_moon, opt.do_rebin):
             return -1
         print 'Tile', T.coadd_id[tileid], 'band', band, 'took:', Time()-t0
     return 0
