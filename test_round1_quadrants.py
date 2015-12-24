@@ -1,18 +1,13 @@
-from unwise_coadd import process_round1_quadrants
+from unwise_coadd import process_round1_quadrants, ReferenceImage
 from astrometry.util.util import Tan
 from astrometry.util.util import Sip
 from zp_lookup import ZPLookUp
 from astrometry.util.fits import fits_table
 import numpy as np
-from warp_utils import WarpMetaParameters
 import matplotlib.pyplot as plt
 import copy
-from unwise_coadd import split_one_quadrant
 import fitsio
-from unwise_coadd import ReferenceImage
-from warp_utils import evaluate_warp_poly
-from warp_utils import render_warp
-from warp_utils import apply_warp
+from warp_utils import WarpMetaParameters, evaluate_warp_poly, render_warp, apply_warp
 
 def add_wcs_column(WISE):
     WISE.wcs = np.zeros(len(WISE), object)
@@ -24,7 +19,8 @@ def add_wcs_column(WISE):
         WISE.wcs[i] = Sip(WISE.intfn[i])
     return WISE
 
-def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None, band=1, only_good_chi2=False):
+def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None, band=1, 
+                              only_good_chi2=False, do_rebin=False):
 # choose a name for file from which WISE will be read
 #    tabname = '/global/cscratch1/sd/ameisner/unwise_test_tiles/foo20/e0_moon/343/3433p000/unwise-3433p000-w'+str(band)+'-frames.fits'
     if band == 1:
@@ -59,7 +55,8 @@ def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None, band=1, o
     
     #print WISE.intfn
     rimgs = process_round1_quadrants(WISE, cowcs, zp_lookup_obj, 
-                                     reference=reference, do_apply_warp=True, save_raw=True, only_good_chi2=only_good_chi2, debug=True)
+                                     reference=reference, do_apply_warp=True, save_raw=True, 
+                                     only_good_chi2=only_good_chi2, debug=True, do_rebin=do_rebin)
     return rimgs, WISE
 
 def create_reference(band=1):
@@ -72,10 +69,11 @@ def create_reference(band=1):
     ref = ReferenceImage(imref, stdref, nref)
     return ref
 
-def plot_quadrant_results(nmax=20, moon_rej=True, band=1):
+def plot_quadrant_results(nmax=20, moon_rej=True, band=1, do_rebin=False):
     reference = create_reference(band=band)
     rimgs_quad, WISE = assemble_quadrant_objects(nmax=nmax, moon_rej=moon_rej, 
-                                                 reference=reference, band=band)
+                                                 reference=reference, band=band,
+                                                 do_rebin=do_rebin)
 
     for rimg_quad in rimgs_quad:
         # rimg_quad = apply_warp(rimg_quad)
@@ -183,13 +181,14 @@ def plot_quadrant_results(nmax=20, moon_rej=True, band=1):
         # 8) rendering of the polynomial warp
         # 9) image of warp-subtracted quadrant
 
-def recovery_stats(nmax=20, moon_rej=True, band=1, plot=False):
+def recovery_stats(nmax=20, moon_rej=True, band=1, plot=False, do_rebin=False):
     # loop over quadrants, computing warps and then 
     # computing basic statistics of how many pixels/quadrants were/weren't recovered
 
     reference = create_reference(band=band)
     rimgs_quad, WISE = assemble_quadrant_objects(nmax=nmax, moon_rej=moon_rej, 
-                                                 reference=reference, band=band)
+                                                 reference=reference, band=band,
+                                                 do_rebin=do_rebin)
 
     n_attempted = 0 # number of quadrants for which warping was attempted
     n_success = 0 # number of quadrants for which warping succeeded
