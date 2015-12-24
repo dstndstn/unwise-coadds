@@ -87,6 +87,7 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
     xmed = np.median(x_l1b_quad)
     ymed = np.median(y_l1b_quad)
 
+    par = WarpMetaParameters()
     if order > 0:
         dx = x_l1b_quad - xmed
         dy = y_l1b_quad - ymed
@@ -101,10 +102,9 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
         resid = (diff - pred)
 
         # try to mimic hogg_iter_linfit
-        sig_thresh = 3.
         resid2 = (resid**2)
         ms  = np.mean(resid2)
-        isgood = (resid2 < (sig_thresh**2)*ms)
+        isgood = (resid2 < (par.sig_thresh**2)*ms)
 
         # redo the fit with outliers removed
         coeff = np.linalg.lstsq(X[isgood], diff[isgood])[0]
@@ -115,7 +115,6 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
         coeff = np.array([pred])
         isgood = np.ones(npix, dtype=bool) # ?? hack
 
-    par = WarpMetaParameters()
     assert(order == par.coeff2order(coeff))
 
     if verbose: print coeff, len(coeff) , ' !!!!!!!!!!!'
@@ -223,6 +222,9 @@ class WarpMetaParameters:
 
         # worst goodness-of-fit for a quadrant to be considered recovered
         self.chi2_mean_thresh = 2.5 # could make this band-dependent
+
+        # outlier threshold (in standard deviations) for iterative poly fitx
+        self.sig_thresh = 3.0
 
         # these values are zero indexed !!
         #                   Q1    Q2   Q3    Q4
