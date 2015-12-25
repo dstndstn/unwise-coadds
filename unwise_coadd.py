@@ -1283,7 +1283,6 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti)
 
     if recover_moon:
-        print 'Updating metadata based on quadrant SecondRoundImage objects.'
         parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti)
 
     WISE.delete_column('wcs')

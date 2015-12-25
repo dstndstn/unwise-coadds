@@ -330,6 +330,11 @@ def update_included_bitmask(WISE, warp_list):
 
 def parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti):
 
+    if qmasks is None:
+        return
+
+    print 'Updating metadata based on quadrant SecondRoundImage objects.'
+
     # appropriately update the WISE metadata table
     for qmask in qmasks:
         # find relevant row in metadata table
