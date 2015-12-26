@@ -863,7 +863,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
               ps, wishlist, outdir, mp1, mp2, do_cube, plots2,
               frame0, nframes, force, medfilt, maxmem, do_dsky, checkmd5,
               bgmatch, center, minmax, rchi_fraction, do_cube1, epoch,
-              before, after, recover_moon, do_rebin, force_outdir=False, just_image=False):
+              before, after, recover_moon, do_rebin, try_download,
+              force_outdir=False, just_image=False):
     '''
     Create coadd for one tile & band.
     '''
@@ -1064,7 +1065,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
             print 'intfn', intfn
             intfnx = intfn.replace(wdir+'/', '')
 
-            if download:
+            if download and try_download:
                 # Try to download the file from IRSA.
                 cmd = (('(wget -r -N -nH -np -nv --cut-dirs=4 -A "*w%i*" ' +
                         '"http://irsa.ipac.caltech.edu/ibe/data/wise/merge/merge_p1bm_frm/%s/")') %
@@ -1106,6 +1107,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                 print 'missing unc or msk file'
                 continue
         if not found:
+            WISE.use[wi] = False
             print 'WARNING: Not found: scan', wise.scan_id, 'frame', wise.frame_num, 'band', band
             failedfiles.append(intfnx)
             continue
@@ -1121,7 +1123,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
             print 'Total pixels in coadd space:', pixinrange
 
     if len(failedfiles):
-        print len(failedfiles), 'failed:'
+        print len(failedfiles), 'failed to find L1b files:'
         for f in failedfiles:
             print '  ', f
         print
@@ -2902,6 +2904,8 @@ def main():
                       help='Attempt to recover Moon-contaminated exposures?')
     parser.add_option('--no_warp_rebin', dest='do_rebin', action='store_false', default=True,
                       help='Turn of rebinning when fitting per-quadrant polynomial warps.')
+    parser.add_option('--no_irsa_dl', dest='try_download', action='store_false', default=True,
+                      help='Do not attempt to download missing L1b files on the fly from IRSA.')
 
     opt,args = parser.parse_args()
 
@@ -3090,7 +3094,7 @@ def main():
                      opt.cube, opt.plots2, opt.frame0, opt.nframes, opt.force,
                      medfilt, opt.maxmem, opt.dsky, opt.md5, opt.bgmatch,
                      opt.center, opt.minmax, opt.rchi_fraction, opt.cube1,
-                     opt.epoch, opt.before, opt.after, opt.recover_moon, opt.do_rebin):
+                     opt.epoch, opt.before, opt.after, opt.recover_moon, opt.do_rebin, opt.try_download):
             return -1
         print 'Tile', T.coadd_id[tileid], 'band', band, 'took:', Time()-t0
     return 0
