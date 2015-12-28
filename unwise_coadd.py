@@ -1053,7 +1053,6 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         print nu, 'of', NU
         print 'scan', wise.scan_id, 'frame', wise.frame_num, 'band', band
 
-        failedfiles = []
         found = False
         for wdir in wisedirs + [None]:
             download = False
@@ -1109,7 +1108,6 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         if not found:
             WISE.use[wi] = False
             print 'WARNING: Not found: scan', wise.scan_id, 'frame', wise.frame_num, 'band', band
-            failedfiles.append(intfnx)
             continue
 
         WISE, has_overlap = get_extents(wcs, cowcs, copoly, W, H, WISE, wi, ps)
@@ -1121,12 +1119,6 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
             e = WISE.coextent[wi,:]
             pixinrange += (1+e[1]-e[0]) * (1+e[3]-e[2])
             print 'Total pixels in coadd space:', pixinrange
-
-    if len(failedfiles):
-        print len(failedfiles), 'failed to find L1b files:'
-        for f in failedfiles:
-            print '  ', f
-        print
 
     # Now we can make a more informed estimate of memory use.
     if maxmem:
