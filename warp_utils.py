@@ -247,7 +247,8 @@ class WarpMetaParameters:
 
     def npix2order(self, npix):
         # convert from number of pixels to appropriate warp polynomial order
-        assert(npix <= (self.sidelen_quad**2))
+        tol = 0.001 # arbitrary
+        assert(npix <= ((1.0+tol)*(self.sidelen_quad**2)))
         assert(npix >= 0)
 
         if (npix >= 45000):
