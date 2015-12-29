@@ -16,7 +16,7 @@ from scipy.ndimage.measurements import label
 from zp_lookup import ZPLookUp
 import random
 from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask, parse_write_quadrant_masks, RecoveryStats, pad_rebin_weighted
-from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs
+from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file
 
 import fitsio
 
@@ -63,14 +63,6 @@ unc_gz = True
 int_gz = None # should get assigned in main
 use_zp_meta = None # should get assigned in main
 compare_moon_all = None # should get assigned in main
-
-def get_l1b_file(basedir, scanid, frame, band):
-    scangrp = scanid[-2:]
-    fname = os.path.join(basedir, scangrp, scanid, '%03i' % frame, 
-                        '%s%03i-w%i-int-1b.fits' % (scanid, frame, band))
-    if int_gz:
-        fname += '.gz'
-    return fname
 
 class ReferenceImage():
     def __init__(self, image, std, n):
@@ -417,7 +409,7 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
     return WISE
 
 def check_one_md5(wise):
-    intfn = get_l1b_file(wisedir, wise.scan_id, wise.frame_num, wise.band)
+    intfn = get_l1b_file(wisedir, wise.scan_id, wise.frame_num, wise.band, int_gz=int_gz)
     uncfn = intfn.replace('-int-', '-unc-')
     if unc_gz and (not int_gz):
         uncfn = uncfn + '.gz'
@@ -1006,7 +998,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         
     if wishlist:
         for wise in WISE:
-            intfn = get_l1b_file(wisedir, wise.scan_id, wise.frame_num, band)
+            intfn = get_l1b_file(wisedir, wise.scan_id, wise.frame_num, band, int_gz=int_gz)
             if not os.path.exists(intfn):
                 print 'Need:', intfn
         return 0
@@ -1060,7 +1052,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                 download = True
                 wdir = 'merge_p1bm_frm'
 
-            intfn = get_l1b_file(wdir, wise.scan_id, wise.frame_num, band)
+            intfn = get_l1b_file(wdir, wise.scan_id, wise.frame_num, band, int_gz=int_gz)
             intfnx = intfn.replace(wdir+'/', '')
 
             if download and try_download:
@@ -1402,7 +1394,7 @@ def plot_region(r0,r1,d0,d1, ps, T, WISE, wcsfns, W, H, pixscale, margin=1.05,
                     WW.intfn = np.array(fns)
                     WW.writeto('sequels-wcs.fits')
 
-                intfn = get_l1b_file(wisedir, wise.scan_id, wise.frame_num, wise.band)
+                intfn = get_l1b_file(wisedir, wise.scan_id, wise.frame_num, wise.band, int_gz=int_gz)
                 try:
                     # what happens here when int_gz is true ???
                     wcs = Tan(intfn, 0, 1)
@@ -3031,7 +3023,7 @@ def main():
         Ibad = check_md5s(WISE)
         print 'Found', len(Ibad), 'bad MD5s'
         for i in Ibad:
-            intfn = get_l1b_file(wisedir, WISE.scan_id[i], WISE.frame_num[i], WISE.band[i])
+            intfn = get_l1b_file(wisedir, WISE.scan_id[i], WISE.frame_num[i], WISE.band[i], int_gz=int_gz)
             print ('(wget -r -N -nH -np -nv --cut-dirs=4 -A "*w%i*" "http://irsa.ipac.caltech.edu/ibe/data/wise/merge/merge_p1bm_frm/%s")' %
                    (WISE.band[i], os.path.dirname(intfn).replace(wisedir + '/', '')))
         sys.exit(0)

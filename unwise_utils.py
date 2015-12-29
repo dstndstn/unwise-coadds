@@ -2,6 +2,14 @@ import os
 import numpy as np
 from astrometry.util.util import Tan
 
+def get_l1b_file(basedir, scanid, frame, band, int_gz=False):
+    scangrp = scanid[-2:]
+    fname = os.path.join(basedir, scangrp, scanid, '%03i' % frame, 
+                        '%s%03i-w%i-int-1b.fits' % (scanid, frame, band))
+    if int_gz:
+        fname += '.gz'
+    return fname
+
 def tile_to_radec(tileid):
     assert(len(tileid) == 8)
     ra = int(tileid[:4], 10) / 10.
