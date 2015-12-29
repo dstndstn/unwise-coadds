@@ -16,7 +16,7 @@ from scipy.ndimage.measurements import label
 from zp_lookup import ZPLookUp
 import random
 from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask, parse_write_quadrant_masks, RecoveryStats, pad_rebin_weighted
-from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file
+from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file, download_frameset_1band
 
 import fitsio
 
@@ -1053,20 +1053,9 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                 wdir = 'merge_p1bm_frm'
 
             intfn = get_l1b_file(wdir, wise.scan_id, wise.frame_num, band, int_gz=int_gz)
-            intfnx = intfn.replace(wdir+'/', '')
 
             if download and try_download:
-                # Try to download the file from IRSA.
-                cmd = (('(wget -r -N -nH -np -nv --cut-dirs=4 -A "*w%i*" ' +
-                        '"http://irsa.ipac.caltech.edu/ibe/data/wise/merge/merge_p1bm_frm/%s/")') %
-                        (band, os.path.dirname(intfnx)))
-                print
-                print 'Trying to download file:'
-                print cmd
-                print
-                os.system(cmd)
-                print
-
+                download_frameset_1band(wise.scan_id, wise.frame_num, band)
             if os.path.exists(intfn):
                 print 'intfn', intfn
                 try:

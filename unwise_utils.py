@@ -79,3 +79,21 @@ def _rebin(a, shape):
     # stolen from stackoverflow ...
     sh = shape[0],a.shape[0]//shape[0],shape[1],a.shape[1]//shape[1]
     return a.reshape(sh).mean(-1).mean(1)
+
+def download_frameset_1band(scan_id, frame_num, band):
+    
+    wdir = '_' # dummy
+
+    intfn = get_l1b_file(wdir, scan_id, frame_num, band)
+    intfnx = intfn.replace(wdir+'/', '')
+
+    # Try to download the file from IRSA.
+    cmd = (('(wget -r -N -nH -np -nv --cut-dirs=4 -A "*w%i*" ' +
+            '"http://irsa.ipac.caltech.edu/ibe/data/wise/merge/merge_p1bm_frm/%s/")') %
+           (band, os.path.dirname(intfnx)))
+    print
+    print 'Trying to download file:'
+    print cmd
+    print
+    os.system(cmd)
+    print
