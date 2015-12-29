@@ -1061,7 +1061,6 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                 wdir = 'merge_p1bm_frm'
 
             intfn = get_l1b_file(wdir, wise.scan_id, wise.frame_num, band)
-            print 'intfn', intfn
             intfnx = intfn.replace(wdir+'/', '')
 
             if download and try_download:
@@ -1077,6 +1076,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                 print
 
             if os.path.exists(intfn):
+                print 'intfn', intfn
                 try:
                     if not int_gz:
                         wcs = Sip(intfn)
@@ -1096,7 +1096,6 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                     traceback.print_exc()
                     continue
             else:
-                print 'does not exist:', intfn
                 continue
             if (os.path.exists(intfn.replace('-int-', '-unc-') + ('.gz' if not int_gz else '')) and
                 os.path.exists(intfn.replace('-int-', '-msk-') + ('.gz' if not int_gz else ''))):
