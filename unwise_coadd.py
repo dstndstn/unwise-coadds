@@ -329,6 +329,7 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
 
     # Join to WISE Single-Frame Metadata Tables
     WISE.planets = np.zeros(len(WISE), np.int16) - 1
+    WISE.nearby_planets = np.zeros(len(WISE), np.int16) - 1
     WISE.qual_frame = np.zeros(len(WISE), np.int16) - 1
     WISE.moon_masked = np.zeros(len(WISE), bool)
     WISE.dtanneal = np.zeros(len(WISE), np.float32)
@@ -352,7 +353,7 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
         print 'Reading', fn
         bb = [1,2,3,4][:nbands]
         cols = (['ra', 'dec', 'scan_id', 'frame_num',
-                 'qual_frame', 'planets', 'moon_masked', ] +
+                 'qual_frame', 'planets', 'nearby_planets', 'moon_masked', ] +
                 ['w%iintmed16ptile' % b for b in bb] +
                 ['w%iintmedian' % b for b in bb] +
                 ['w%iintstddev' % b for b in bb])
@@ -399,9 +400,9 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
             WISE.matched[II] = True
             WISE.phase[II] = nbands
             WISE.planets[II] = T.planets[JJ]
+            WISE.nearby_planets[II] = T.nearby_planets[JJ]
 
     print np.sum(WISE.matched), 'of', len(WISE), 'matched to metadata tables'
-    print np.unique(WISE.planets)
     assert(np.sum(WISE.matched) == len(WISE))
     WISE.delete_column('matched')
     # Reorder by scan, frame, band
@@ -942,6 +943,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     print 'Cut out qual_frame = 0;', sum(WISE.use), 'remaining'
     WISE.use *= (WISE.planets == 0)
     print 'Cut out planets != 0;', sum(WISE.use), 'remaining'
+    WISE.use *= (WISE.nearby_planets == 0)
+    print 'Cut out nearby planets != 0;', sum(WISE.use), 'remaining'
 
     if band in [3,4]:
         WISE.use *= (WISE.dtanneal > 2000.)
