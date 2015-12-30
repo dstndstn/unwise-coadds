@@ -97,3 +97,10 @@ def download_frameset_1band(scan_id, frame_num, band):
     print
     os.system(cmd)
     print
+
+def planet_name2bit(_name):
+    name = _name.lower()
+    name2bit = {'mars' : 0,
+                'jupiter' : 1,
+                'saturn' : 2}
+    return name2bit[name]
