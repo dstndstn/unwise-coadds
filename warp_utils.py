@@ -290,7 +290,7 @@ def gen_warp_table(warp_list):
 
     # assume that warp_list contains no None entries
 
-    nwarp = len(warp_list)
+    nwarp = (0 if warp_list is None else len(warp_list))
     arr_out = np.zeros((nwarp,), 
                        dtype=[('scan_id','a6'),
                               ('frame_num','int'),
@@ -302,6 +302,10 @@ def gen_warp_table(warp_list):
                               ('chi2_mean', 'float32'),
                               ('chi2_mean_raw', 'float32'),
                               ('npix', 'int')])
+
+    if warp_list is None:
+        return arr_out # syntactically correct but no rows
+
     for i,warp in enumerate(warp_list):
         arr_out['scan_id'][i] = warp.scan_id
         arr_out['frame_num'][i] = warp.frame_num
