@@ -16,7 +16,7 @@ from scipy.ndimage.measurements import label
 from zp_lookup import ZPLookUp
 import random
 from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask, parse_write_quadrant_masks, RecoveryStats, pad_rebin_weighted
-from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file, download_frameset_1band
+from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file, download_frameset_1band, sanity_check_inputs
 
 import fitsio
 
@@ -2885,7 +2885,12 @@ def main():
                       help='Turn of rebinning when fitting per-quadrant polynomial warps.')
     parser.add_option('--no_irsa_dl', dest='try_download', action='store_false', default=True,
                       help='Do not attempt to download missing L1b files on the fly from IRSA.')
+    parser.add_option('--warp_all', dest='warp_all', action='store_true', default=False,
+                      help='For time-resolved coadd, warp all exposures relative to external reference image?')
+    parser.add_option('--reference_dir', dest='reference_dir', type=str, default=None, 
+                      help='Directory containing reference image when --warp_all option activated')
 
+    sanity_check_inputs(parser)
     opt,args = parser.parse_args()
 
     global int_gz

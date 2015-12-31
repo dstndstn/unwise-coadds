@@ -104,3 +104,45 @@ def planet_name2bit(_name):
                 'jupiter' : 1,
                 'saturn' : 2}
     return name2bit[name]
+
+def is_fulldepth(parser):
+    # based on input arguments to unwise_coadd.py, decide whether
+    # the coadd being run is fulldepth or not
+
+    fulldepth = True
+
+    opt, args = parser.parse_args()
+
+    if opt.epoch is not None:
+        fulldepth = False
+    if opt.before != parser.defaults['before']:
+        fulldepth = False
+    if opt.after != parser.defaults['after']:
+        fulldepth = False
+    if opt.frame0 != parser.defaults['frame0']:
+        fulldepth = False
+    if opt.nframes != parser.defaults['nframes']:
+        fulldepth = False
+
+    return fulldepth
+
+def sanity_check_inputs(parser):
+    # with the newly added polynomial warping options, it's possible
+    # for the user to specify a set of inputs that don't really make sense
+    # taken together -- this routine will halt execution if non-sane inputs
+    # provided
+
+    opt, args = parser.parse_args()
+
+    if opt.warp_all or (opt.reference_dir is not None):
+        assert((opt.reference_dir is not None) and opt.warp_all and (opt.epoch is not None))
+        assert((opt.ra is None) and (opt.dec is None))
+        assert((parser.defaults['after'] == opt.after) and (parser.defaults['before'] == opt.before))
+        assert(opt.tile is not None)
+
+        # still need to check whether specified reference_dir has necessary files
+
+    fulldepth = is_fulldepth(parser)
+    if opt.recover_warped and (not fulldepth):
+        assert(opt.warp_all and (opt.reference_dir is not None))
+        # if arrived here then reference_dir will already have been checked for necessary files
