@@ -140,7 +140,7 @@ def sanity_check_inputs(parser):
         assert((parser.defaults['after'] == opt.after) and (parser.defaults['before'] == opt.before))
         assert(opt.tile is not None)
 
-        # still need to check whether specified reference_dir has necessary files
+        # TODO : still need to check whether specified reference_dir has necessary files
 
     fulldepth = is_fulldepth(parser)
     if opt.recover_warped and (not fulldepth):

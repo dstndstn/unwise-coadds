@@ -1,4 +1,4 @@
-from unwise_coadd import process_round1_quadrants, ReferenceImage
+from unwise_coadd import process_round1_quadrants
 from astrometry.util.util import Tan
 from astrometry.util.util import Sip
 from zp_lookup import ZPLookUp
@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import copy
 import fitsio
-from warp_utils import WarpMetaParameters, evaluate_warp_poly, render_warp, apply_warp
+from warp_utils import WarpMetaParameters, evaluate_warp_poly, render_warp, apply_warp, ReferenceImage
 
 def add_wcs_column(WISE):
     WISE.wcs = np.zeros(len(WISE), object)

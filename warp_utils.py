@@ -4,6 +4,41 @@ import os
 import fitsio
 from unwise_utils import _rebin
 
+class ReferenceImage():
+    def __init__(self, image, std, n):
+        # these need to be images corresponding to the *entire* reference tile
+        self.image = image # the reference image itself
+        self.n = n # the integer coverage, should be from *n-u.fits
+        self.sigma = self.patch_zero_sigma(std*np.sqrt(n), n) # 1 sigma error to be used when computing warp chi2 values
+
+    def extract_cutout(self, rimg):
+        # rimg should be the FirstRoundImage object
+        x0_coadd = rimg.coextent[0]
+        x1_coadd = rimg.coextent[1] + 1
+        y0_coadd = rimg.coextent[2]
+        y1_coadd = rimg.coextent[3] + 1
+
+        return (self.image[y0_coadd:y1_coadd, x0_coadd:x1_coadd],  
+                self.sigma[y0_coadd:y1_coadd, x0_coadd:x1_coadd],
+                self.n[y0_coadd:y1_coadd, x0_coadd:x1_coadd])
+
+    def patch_zero_sigma(self, sigma, n):
+        # HACK !!
+        nbad = np.sum((sigma == 0) & (n != 0))
+        if (nbad != 0):
+            ok = patch_image(sigma, ((sigma != 0) | (n == 0)))
+            assert(ok)
+            print 'Patched ' + str(nbad) + ' bad reference uncertainty pixels'
+            return sigma
+        else:
+            return sigma
+
+    def write(self, outname):
+        # for debugging
+        fitsio.write(outname, self.image)
+        fitsio.write(outname, self.n)
+        fitsio.write(outname, self.sigma)
+
 def evaluate_warp_poly(coeff, dx, dy):
     par = WarpMetaParameters()
     order = par.coeff2order(coeff)
