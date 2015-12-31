@@ -1287,12 +1287,15 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     print 'Wrote', ofn
     # append warp summary table, write syntactically correct placeholder if no warps attempted
     warp_tab = gen_warp_table(warp_list)
-    print 'Appending warp summary table to ' + ofn
+    if warp_list is not None: print 'Appending warp summary table to ' + ofn
     fitsio.write(ofn, warp_tab)
     if rstats is not None:
         rstats = rstats.to_recarray()
         print 'Appending warp recovery summary statistics to ' + ofn
-        fitsio.write(ofn, rstats)
+    else:
+        rstats = RecoveryStats(None, None, None) # dummy
+        rstats = rstats.to_recarray()
+    fitsio.write(ofn, rstats)
 
     md = tag + '-mask'
     cmd = ('cd %s && tar czf %s %s && rm -R %s' %

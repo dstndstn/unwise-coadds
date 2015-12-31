@@ -424,12 +424,16 @@ class RecoveryStats():
         self.n_skipped = n_skipped
 
     def to_recarray(self):
-        nrow = 1
+        dummy = (self.n_attempted is None)
+        nrow = (0 if dummy else 1)
 
         arr_out = np.zeros((nrow,), 
                            dtype=[('n_attempted','int'),
                                   ('n_succeeded','int'),
                                   ('n_skipped','int')])
+        if dummy:
+            return arr_out
+
         arr_out['n_attempted'][0] = self.n_attempted
         arr_out['n_succeeded'][0] = self.n_succeeded
         arr_out['n_skipped'][0] = self.n_skipped
