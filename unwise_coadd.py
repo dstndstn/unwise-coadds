@@ -15,7 +15,7 @@ from scipy.ndimage.morphology import binary_dilation
 from scipy.ndimage.measurements import label
 from zp_lookup import ZPLookUp
 import random
-from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask, parse_write_quadrant_masks, RecoveryStats, pad_rebin_weighted, ReferenceImage
+from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask, parse_write_quadrant_masks, RecoveryStats, pad_rebin_weighted, ReferenceImage, QuadrantWarp
 from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file, download_frameset_1band, sanity_check_inputs
 
 import fitsio
@@ -63,24 +63,6 @@ unc_gz = True
 int_gz = None # should get assigned in main
 use_zp_meta = None # should get assigned in main
 compare_moon_all = None # should get assigned in main
-
-class QuadrantWarp():
-    def __init__(self, quadrant, coeff, xmed, ymed, chi2mean, chi2mean_raw, order, 
-                 non_extreme_mask, npix, scan_id, frame_num, debug=False):
-        self.quadrant = quadrant # this is an integer ??
-        self.coeff = coeff
-        self.xmed = xmed
-        self.ymed = ymed
-        self.chi2mean = chi2mean
-        self.chi2mean_raw = chi2mean_raw
-        self.order = order
-        if debug:
-            self.non_extreme_mask = non_extreme_mask
-        else:
-            self.non_extreme_mask = None
-        self.npix = int(npix) # number of pixels used in fit, including those rejected in iterative fit
-        self.scan_id = scan_id
-        self.frame_num = frame_num
 
 class FirstRoundCoadd():
     def __init__(self, coimg1, cow1, coppstd1, cowimgsq1):

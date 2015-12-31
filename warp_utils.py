@@ -4,6 +4,24 @@ import os
 import fitsio
 from unwise_utils import _rebin
 
+class QuadrantWarp():
+    def __init__(self, quadrant, coeff, xmed, ymed, chi2mean, chi2mean_raw, order, 
+                 non_extreme_mask, npix, scan_id, frame_num, debug=False):
+        self.quadrant = quadrant # this is an integer ??
+        self.coeff = coeff
+        self.xmed = xmed
+        self.ymed = ymed
+        self.chi2mean = chi2mean
+        self.chi2mean_raw = chi2mean_raw
+        self.order = order
+        if debug:
+            self.non_extreme_mask = non_extreme_mask
+        else:
+            self.non_extreme_mask = None
+        self.npix = int(npix) # number of pixels used in fit, including those rejected in iterative fit
+        self.scan_id = scan_id
+        self.frame_num = frame_num
+
 class ReferenceImage():
     def __init__(self, image, std, n):
         # these need to be images corresponding to the *entire* reference tile
