@@ -943,8 +943,9 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     print 'Cut out qual_frame = 0;', sum(WISE.use), 'remaining'
     WISE.use *= (WISE.planets == 0)
     print 'Cut out planets != 0;', sum(WISE.use), 'remaining'
-    WISE.use *= (WISE.nearby_planets == 0)
-    print 'Cut out nearby planets != 0;', sum(WISE.use), 'remaining'
+    if not recover_warped:
+        WISE.use *= (WISE.nearby_planets == 0)
+        print 'Cut out nearby planets != 0;', sum(WISE.use), 'remaining'
 
     if band in [3,4]:
         WISE.use *= (WISE.dtanneal > 2000.)
@@ -1122,8 +1123,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     # construct metadata table of frames we'll try to recover
     recover = None
     if recover_warped:
-        if np.sum(WISE.use & WISE.moon_rej) != 0:
-            recover = WISE[WISE.use & (WISE.moon_rej)]
+        if np.sum(WISE.use & (WISE.moon_rej | (WISE.nearby_planets != 0))) != 0:
+            recover = WISE[WISE.use & (WISE.moon_rej | (WISE.nearby_planets != 0))]
 
     # Now that we've got some information about the input frames, call
     # the real coadding code.  Maybe we should move this first loop into
@@ -1131,8 +1132,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     try:
         (coim,coiv,copp,con, coimb,coivb,coppb,conb,masks, cube, cosky,
          comin,comax,cominb,comaxb, warp_list, qmasks, rstats
-         )= coadd_wise(ti.coadd_id, cowcs, WISE[WISE.use & (~WISE.moon_rej)], ps, band, mp1, mp2, do_cube,
-                       medfilt, plots2=plots2, do_dsky=do_dsky,
+         )= coadd_wise(ti.coadd_id, cowcs, WISE[WISE.use & ~(WISE.moon_rej | (WISE.nearby_planets != 0))], ps, 
+                       band, mp1, mp2, do_cube, medfilt, plots2=plots2, do_dsky=do_dsky,
                        checkmd5=checkmd5, bgmatch=bgmatch, minmax=minmax,
                        rchi_fraction=rchi_fraction, do_cube1=do_cube1, recover=recover, do_rebin=do_rebin)
     except:
@@ -1254,7 +1255,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     WISE.npixrchi    = np.zeros(len(WISE), np.int32)
     WISE.weight      = np.zeros(len(WISE), np.float32)
 
-    Iused = np.flatnonzero(WISE.use & (~WISE.moon_rej)) # hack !!!!!
+    Iused = np.flatnonzero(WISE.use & ~(WISE.moon_rej | (WISE.nearby_planets != 0))) # hack !!!!!
     assert(len(Iused) == len(masks))
 
     parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti)
@@ -1910,12 +1911,13 @@ def recover_warped_frames(WISE, coadd, reference, cowcs, zp_lookup_obj, r1_coadd
     # reference holds relevant info about reference coadd, and is a ReferenceImage object
     # r1_coadd is a FirstRoundCoadd object
     assert(np.min(WISE.use) == 1)
-    assert(np.min(WISE.moon_rej) == 1)
+    assert(np.min(WISE.moon_rej | (WISE.nearby_planets != 0)) == 1) # clean this up
+    assert(np.sum(WISE.planets) == 0) # never try to recover when planet is inside FOV
 
     rchi_fraction = 0.05 # be more lenient
 
     nrec = len(WISE)
-    print 'Attempting to recover ' + str(nrec) + ' Moon-contaminated frames'
+    print 'Attempting to recover ' + str(nrec) + ' Moon or planet contaminated frames'
     # call routine to generate per-quadrant list of FirstRoundImages
     # it will be best to compute/apply warp at time of each FirstRoundImage's creation i.e. within process_round1_quadrants
 
