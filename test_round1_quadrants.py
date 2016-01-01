@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import copy
 import fitsio
-from warp_utils import WarpMetaParameters, evaluate_warp_poly, render_warp, apply_warp, ReferenceImage
+from warp_utils import WarpMetaParameters, evaluate_warp_poly, render_warp, apply_warp, ReferenceImage, reference_image_from_dir
 
 def add_wcs_column(WISE):
     WISE.wcs = np.zeros(len(WISE), object)
@@ -60,13 +60,8 @@ def assemble_quadrant_objects(nmax=20, moon_rej=False, reference=None, band=1,
     return rimgs, WISE
 
 def create_reference(band=1):
-    coaddname = '/global/cscratch1/sd/ameisner/unwise-coadds/fulldepth_zp/343/3433p000/unwise-3433p000-w'+str(band)+'-img-u.fits'
-    print 'reading reference tile : ' + coaddname + ' ~~~~~~~~~~~~~~~~~~~~~~'
-    imref = fitsio.read(coaddname)
-    nref = fitsio.read(coaddname.replace('img', 'n'))
-    stdref = fitsio.read(coaddname.replace('img', 'std'))
-
-    ref = ReferenceImage(imref, stdref, nref)
+    basedir = '/global/cscratch1/sd/ameisner/unwise-coadds/fulldepth_zp'
+    ref = reference_image_from_dir(basedir, '3433p000', band, verbose=True)
     return ref
 
 def plot_quadrant_results(nmax=20, moon_rej=True, band=1, do_rebin=False):

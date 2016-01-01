@@ -2,7 +2,7 @@ import numpy as np
 import time
 import os
 import fitsio
-from unwise_utils import _rebin
+from unwise_utils import _rebin, get_dir_for_coadd
 
 class QuadrantWarp():
     def __init__(self, quadrant, coeff, xmed, ymed, chi2mean, chi2mean_raw, order, 
@@ -538,3 +538,25 @@ def pad_rebin_weighted(images, mask, binfac=2):
         images_out.append(im_reb) # slow ?
     
     return images_out, mask_reb
+
+def reference_image_from_dir(basedir, coadd_id, band, verbose=True):
+    # basedir is base directory, e.g. '$SCRATCH/unwise-coadds'
+    # portion of $SCRATCH/unwise-coadds/000/0000p000/unwise-0000p000-w1-img-u.fits
+    # could have problems if/when certain full-depth outputs get gzipped
+
+    dir = get_dir_for_coadd(basedir, coadd_id)
+    intfn = os.path.join(dir, 'unwise-' + coadd_id + '-w' + str(band) + '-img-u.fits')
+    uncfn = intfn.replace('-img-u.fits', '-std-u.fits')
+    nfn = intfn.replace('-img-u.fits', '-n-u.fits')
+
+    if verbose:
+        print 'Creating reference image from files: '
+        print intfn
+        print uncfn
+        print nfn
+
+    image = fitsio.read(intfn)
+    std = fitsio.read(uncfn)
+    n = fitsio.read(nfn)
+    ref = ReferenceImage(image, std, n)
+    return ref
