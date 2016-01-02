@@ -379,6 +379,8 @@ def gen_warp_table(warp_list):
 def update_included_bitmask(WISE, warp_list):
     # make the included column of WISE metadata table into a bitmask
     # indicating which quadrants were recovered
+    # note that warp_list can also be a list of SecondRoundImage objects
+    # provided that the SecondRoundImage objects have .scan_id and .frame_num set
 
     for warp in warp_list:
         assert(warp.quadrant != -1)
@@ -451,7 +453,7 @@ def merge_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti):
         assert(not os.path.exists(ofn))
 
         fitsio.write(ofn, fullmask)
-        print 'Wrote warp recovery mask', (i+1), 'of', len(expid_u), ':', ofn
+        print 'Wrote quadrant-based mask', (i+1), 'of', len(expid_u), ':', ofn
 
 def lookup_meta_quadrant(scan_id, frame_num, quad_num, WISE):
     # meant to be helper for merge_write_quadrant_masks function above

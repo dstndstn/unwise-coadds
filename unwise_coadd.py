@@ -86,6 +86,7 @@ class FirstRoundImage():
         self.zp = None
         self.zpscale = None
         self.quadrant = quadrant
+        self.included_round1 = False
         # optional
         self.x_l1b = None
         self.y_l1b = None
@@ -96,6 +97,8 @@ class FirstRoundImage():
         self.warp = None # of type QuadrantWarp
         self.warped = False
         self.rimg_bak = None # for debugging only; once warping performed, will hold raw image
+        self.scan_id = None
+        self.frame_num = None
 
     def clear_xy_coords(self):
         print "deleting x, y coordinates for quadrant " + str(self.quadrant)
@@ -554,6 +557,9 @@ def split_one_quadrant(rimg, wise, quad_num, redo_sky=False, reference=None, del
     rimg_quad.x_coadd = rimg.x_coadd[quad_mask] - x_left
     rimg_quad.y_coadd = rimg.y_coadd[quad_mask] - y_bot
 
+    rimg_quad.scan_id = wise.scan_id
+    rimg_quad.frame_num = wise.frame_num
+
     assert(len(rimg_quad.x_l1b) == np.sum(rimg_quad.rmask != 0))
 
     # if reference is not None, call the warping code here !!
@@ -804,7 +810,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
               frame0, nframes, force, medfilt, maxmem, do_dsky, checkmd5,
               bgmatch, center, minmax, rchi_fraction, do_cube1, epoch,
               before, after, recover_warped, do_rebin, try_download,
-              force_outdir=False, just_image=False):
+              force_outdir=False, just_image=False, warp_all=False,
+              reference_dir=None):
     '''
     Create coadd for one tile & band.
     '''
@@ -1082,7 +1089,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
          )= coadd_wise(ti.coadd_id, cowcs, WISE[WISE.use & ~(WISE.moon_rej | (WISE.nearby_planets != 0))], ps, 
                        band, mp1, mp2, do_cube, medfilt, plots2=plots2, do_dsky=do_dsky,
                        checkmd5=checkmd5, bgmatch=bgmatch, minmax=minmax,
-                       rchi_fraction=rchi_fraction, do_cube1=do_cube1, recover=recover, do_rebin=do_rebin)
+                       rchi_fraction=rchi_fraction, do_cube1=do_cube1, recover=recover, do_rebin=do_rebin,
+                       warp_all=warp_all, reference_dir=reference_dir)
     except:
         print 'coadd_wise failed:'
         import traceback
@@ -1202,10 +1210,12 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     WISE.npixrchi    = np.zeros(len(WISE), np.int32)
     WISE.weight      = np.zeros(len(WISE), np.float32)
 
-    Iused = np.flatnonzero(WISE.use & ~(WISE.moon_rej | (WISE.nearby_planets != 0))) # hack !!!!!
-    assert(len(Iused) == len(masks))
-
-    parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti)
+    if not warp_all:
+        Iused = np.flatnonzero(WISE.use & ~(WISE.moon_rej | (WISE.nearby_planets != 0))) # hack !!!!!
+        assert(len(Iused) == len(masks))
+        parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti)
+    else:
+        parse_write_quadrant_masks(outdir, tag, WISE, masks, int_gz, ofn, ti)
 
     if recover_warped:
         parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti)
@@ -1228,7 +1238,12 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     ofn = prefix + '-frames.fits'
 
     if warp_list is not None:
-        update_included_bitmask(WISE, warp_list)
+        # need to fix this for the case that warp_all=True AND recover_warped=True
+        if warp_all:
+            update_included_bitmask(WISE, masks) # this is the --warp_all case
+        else:
+            update_included_bitmask(WISE, warp_list) # this is the --recover_warped case
+        
 
     WISE.writeto(ofn)
     print 'Wrote', ofn
@@ -1471,7 +1486,7 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     if rr is None:
         return None
 
-    included_round1 = (rr.quadrant == -1) # kind of a hack
+    included_round1 = rr.included_round1
 
     print 'Coadd round 2, image', (ri+1), 'of', N
     t00 = Time()
@@ -1880,19 +1895,28 @@ def recover_warped_frames(WISE, coadd, reference, cowcs, zp_lookup_obj, r1_coadd
 def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                do_cube, medfilt, plots2=False, table=True, do_dsky=False,
                checkmd5=False, bgmatch=False, minmax=False, rchi_fraction=0.01, do_cube1=False, 
-               recover=None, do_rebin=True):
+               recover=None, do_rebin=True, warp_all=False, reference_dir=None):
     L = 3
     W = cowcs.get_width()
     H = cowcs.get_height()
     # For W4, single-image ww is ~ 1e-10
     tinyw = 1e-16
 
+    reference = (reference_image_from_dir(reference_dir, tile, band) if warp_all else None)
     # Round-1 coadd:
     (rimgs, r1_coadd, cube1) = _coadd_wise_round1(
         cowcs, WISE, ps, band, table, L, tinyw, mp1, medfilt, checkmd5,
-        bgmatch, do_cube1)
+        bgmatch, do_cube1, reference=reference)
 
-    assert(len(rimgs) == len(WISE))
+    if not warp_all:
+        assert(len(rimgs) == len(WISE))
+
+    warp_list = None # dummy return value which may or may not get updated
+    if warp_all:
+        warp_list = []
+        for _rimg in rimgs:
+            if _rimg.warp is not None:
+                warp_list.append(_rimg.warp)
 
     if mp1 != mp2:
         print 'Shutting down multiprocessing pool 1'
@@ -2151,6 +2175,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
         coadd = coaddacc(H, W, do_cube=do_cube, nims=len(rimgs), minmax=minmax)
         masks = []
         ri = -1
+        num_round1_images = len(rimgs)
         while len(rimgs):
             ri += 1
             rr = rimgs.pop(0)
@@ -2158,14 +2183,24 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                 plotfn = ps.getnext()
             else:
                 plotfn = None
+            if not warp_all:
+                this_scan_id = WISE.scan_id[ri]
+                this_frame_num = WISE.frame_num[ri]
+            else:
+                this_scan_id = rr.scan_id
+                this_frame_num = rr.frame_num
             scanid = ('scan %s frame %i band %i' %
-                      (WISE.scan_id[ri], WISE.frame_num[ri], band))
+                     (this_scan_id, this_frame_num, band)) # really should clean this up ...
             mm = _coadd_one_round2(
-                (ri, len(WISE), scanid, rr, r1_coadd.cow1, r1_coadd.cowimg1, r1_coadd.cowimgsq1, tinyw,
+                (ri, num_round1_images, scanid, rr, r1_coadd.cow1, r1_coadd.cowimg1, r1_coadd.cowimgsq1, tinyw,
                  plotfn, ps1, do_dsky, rchi_fraction))
             coadd.acc(mm, delmm=delmm)
+            if mm is not None:
+                mm.scan_id = this_scan_id
+                mm.frame_num = this_frame_num
             masks.append(mm)
     else:
+        # this will be screwed up if warp_all is True ...
         args = []
         N = len(WISE)
         for ri,rr in enumerate(rimgs):
@@ -2202,7 +2237,6 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
         zp_lookup_obj = ZPLookUp(band, poly=True)
         coadd, warp_list, qmasks, rstats = recover_warped_frames(recover, coadd, reference, cowcs, zp_lookup_obj, r1_coadd, do_rebin=do_rebin)
     else:
-        warp_list = None # dummy return value
         qmasks = None # dummy return value
         rstats = None # dummy return value
 
@@ -2522,7 +2556,7 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
 
 
 def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
-                       checkmd5, bgmatch, cube1):
+                       checkmd5, bgmatch, cube1, reference=None):
                        
     '''
     Do round-1 coadd.
@@ -2535,12 +2569,20 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
 
     zp_lookup_obj = ZPLookUp(band, poly=True)
 
-    args = []
-    for wi,wise in enumerate(WISE):
-        args.append((wi, len(WISE), wise, table, L, ps, band, cowcs, medfilt,
-                     checkmd5, zp_lookup_obj))
-    rimgs = mp.map(_coadd_one_round1, args)
-    del args
+    if reference is None:
+        args = []
+        for wi,wise in enumerate(WISE):
+            args.append((wi, len(WISE), wise, table, L, ps, band, cowcs, medfilt,
+                         checkmd5, zp_lookup_obj))
+        rimgs = mp.map(_coadd_one_round1, args)
+        del args
+    else:
+        # this is intended for the case of a time-resolved coadd with full-depth reference available
+        print 'Warping all quadrants relative to reference image'
+        rimgs = process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, 
+                                         delete_xy_coords=True, reference=reference,
+                                         do_apply_warp=True, save_raw=False, coadd=None, only_good_chi2=False, debug=False,
+                                         do_rebin=True)
 
     print 'Accumulating first-round coadds...'
     cube = None
@@ -2552,6 +2594,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
     for wi,rr in enumerate(rimgs):
         if rr is None:
             continue
+        rr.included_round1 = True
         cox0,cox1,coy0,coy1 = rr.coextent
         slc = slice(coy0,coy1+1), slice(cox0,cox1+1)
 
@@ -3025,7 +3068,8 @@ def main():
                      opt.cube, opt.plots2, opt.frame0, opt.nframes, opt.force,
                      medfilt, opt.maxmem, opt.dsky, opt.md5, opt.bgmatch,
                      opt.center, opt.minmax, opt.rchi_fraction, opt.cube1,
-                     opt.epoch, opt.before, opt.after, opt.recover_warped, opt.do_rebin, opt.try_download):
+                     opt.epoch, opt.before, opt.after, opt.recover_warped, opt.do_rebin, opt.try_download,
+                     warp_all=opt.warp_all, reference_dir=opt.reference_dir):
             return -1
         print 'Tile', T.coadd_id[tileid], 'band', band, 'took:', Time()-t0
     return 0
