@@ -648,14 +648,24 @@ def process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_x
         del quadrants_this_exp
         del rr
 
+    if coadd is None:
+        # get n_attempted, n_succeeded, n_skipped right ... should really clean this up at some point
+        for rimg_quad in quad_rimgs:
+            if rimg_quad.warp is None:
+                n_skipped += 1
+            else:
+                n_attempted += 1
+                if rimg_quad.warped:
+                    n_succeeded += 1
+
     gc.collect()
+    rstats = RecoveryStats(n_attempted, n_succeeded, n_skipped)
     if coadd is None:
         if len(quad_rimgs) == 0:
-            return None
+            return None, rstats
         else:
-            return quad_rimgs
+            return quad_rimgs, rstats
     else:
-        rstats = RecoveryStats(n_attempted, n_succeeded, n_skipped)
         return coadd, warp_list, r2_masks, rstats
 
 def get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, wi, ps, quad_num, coextent, imextent, margin=10):
@@ -1238,12 +1248,10 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     ofn = prefix + '-frames.fits'
 
     if warp_list is not None:
-        # need to fix this for the case that warp_all=True AND recover_warped=True
-        if warp_all:
-            update_included_bitmask(WISE, masks) # this is the --warp_all case
-        else:
-            update_included_bitmask(WISE, warp_list) # this is the --recover_warped case
-        
+        update_included_bitmask(WISE, warp_list) # this is the --recover_warped case
+
+    if warp_all:
+        update_included_bitmask(WISE, masks)
 
     WISE.writeto(ofn)
     print 'Wrote', ofn
@@ -1903,15 +1911,17 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     tinyw = 1e-16
 
     reference = (reference_image_from_dir(reference_dir, tile, band) if warp_all else None)
+    warp_list = None # dummy return value which may or may not get updated
+    rstats = None # dummy return value which may or may not get updated
+
     # Round-1 coadd:
-    (rimgs, r1_coadd, cube1) = _coadd_wise_round1(
+    (rimgs, r1_coadd, rstats, cube1) = _coadd_wise_round1(
         cowcs, WISE, ps, band, table, L, tinyw, mp1, medfilt, checkmd5,
-        bgmatch, do_cube1, reference=reference)
+        bgmatch, do_cube1, reference=reference, recover=recover)
 
     if not warp_all:
         assert(len(rimgs) == len(WISE))
 
-    warp_list = None # dummy return value which may or may not get updated
     if warp_all:
         warp_list = []
         for _rimg in rimgs:
@@ -2228,7 +2238,8 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     gc.collect()
     print 'After garbage collection:', Time()-t0
 
-    if recover is not None:
+    # this should be only for the case of full-depth warp recovery
+    if (recover is not None) and (reference is None):
         # recover contains Moon-contaminated subset of rows from exposure metadata table
         coadd_copy = deepcopy(coadd)
         coimg,  coinvvar,  coppstd,  con, coimgb, coinvvarb, coppstdb, conb, cube = extract_round2_outputs(coadd_copy, tinyw)
@@ -2238,7 +2249,6 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
         coadd, warp_list, qmasks, rstats = recover_warped_frames(recover, coadd, reference, cowcs, zp_lookup_obj, r1_coadd, do_rebin=do_rebin)
     else:
         qmasks = None # dummy return value
-        rstats = None # dummy return value
 
     coimg,  coinvvar,  coppstd,  con, coimgb, coinvvarb, coppstdb, conb, cube = extract_round2_outputs(coadd, tinyw)
 
@@ -2556,7 +2566,7 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
 
 
 def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
-                       checkmd5, bgmatch, cube1, reference=None):
+                       checkmd5, bgmatch, cube1, reference=None, recover=None):
                        
     '''
     Do round-1 coadd.
@@ -2569,6 +2579,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
 
     zp_lookup_obj = ZPLookUp(band, poly=True)
 
+    rstats = None # dummy
     if reference is None:
         args = []
         for wi,wise in enumerate(WISE):
@@ -2579,10 +2590,19 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
     else:
         # this is intended for the case of a time-resolved coadd with full-depth reference available
         print 'Warping all quadrants relative to reference image'
-        rimgs = process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, 
-                                         delete_xy_coords=True, reference=reference,
-                                         do_apply_warp=True, save_raw=False, coadd=None, only_good_chi2=False, debug=False,
-                                         do_rebin=True)
+        rimgs, _ = process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, 
+                                            delete_xy_coords=True, reference=reference,
+                                            do_apply_warp=True, save_raw=False, coadd=None, only_good_chi2=False, debug=False,
+                                            do_rebin=True)
+        if recover is not None:
+            rimgs_rec, rstats = process_round1_quadrants(recover, cowcs, zp_lookup_obj, r1_coadd=None, 
+                                                         delete_xy_coords=True, reference=reference,
+                                                         do_apply_warp=True, save_raw=False, coadd=None, only_good_chi2=True, debug=False,
+                                                         do_rebin=True)
+            while len(rimgs_rec):
+                rr_rec = rimgs_rec.pop(0)
+                if rr_rec.warped:
+                    rimgs.append(rr_rec)
 
     print 'Accumulating first-round coadds...'
     cube = None
@@ -2735,7 +2755,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
         ps.savefig()
 
     r1_coadd = FirstRoundCoadd(coimg, cow, coppstd, coimgsq)
-    return rimgs, r1_coadd, cube
+    return rimgs, r1_coadd, rstats, cube
 
 def get_wise_frames_for_dataset(dataset, r0,r1,d0,d1,
                                 randomize=False, cache=True, dirnm=None):

@@ -495,6 +495,11 @@ class RecoveryStats():
 
         return arr_out
 
+    def _print(self):
+        print 'number of warps attempted: ' + str(self.n_attempted)
+        print 'number of warps succeeded: ' + str(self.n_succeeded)
+        print 'number of warps skipped: ' + str(self.n_skipped)
+
 def pad_rebin_weighted(images, mask, binfac=2):
     # pad a set of images so that each can be rebinned by integer binfac 
     # then do the rebinning; images input is a list of 2d numpy arrays
