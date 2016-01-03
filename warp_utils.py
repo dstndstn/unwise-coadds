@@ -384,9 +384,9 @@ def update_included_bitmask(WISE, warp_list):
 
     for warp in warp_list:
         assert(warp.quadrant != -1)
-        val = 2**(warp.quadrant)
+        val = int(2**(warp.quadrant))
         # WISE input should be modified in calling scope
-        WISE.included[(WISE.scan_id == warp.scan_id) & (WISE.frame_num == warp.frame_num)] += val
+        WISE.included[(WISE.scan_id == warp.scan_id) & (WISE.frame_num == warp.frame_num)] |= val
 
 def parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti):
 
