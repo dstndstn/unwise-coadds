@@ -230,7 +230,6 @@ def apply_warp(rimg_quad, band, save_raw=False, only_good_chi2=False):
     print 'Subtracted polynomial warp from quadrant'
 
     assert(np.sum(rimg_quad.rimg != rimg_bak) != 0)
-    assert(np.sum(rimg_quad.rimg != 0) == np.sum(rimg_bak != 0))
 
     # save_raw=False is a way to conserve RAM in event that saving
     # copy of uncorrected quadrant image is unnecessary
