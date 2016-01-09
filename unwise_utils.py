@@ -1,6 +1,8 @@
 import os
 import numpy as np
 from astrometry.util.util import Tan
+import fitsio
+from time_limit import time_limit, TimeoutException
 
 def get_l1b_file(basedir, scanid, frame, band, int_gz=False):
     scangrp = scanid[-2:]
@@ -146,3 +148,21 @@ def sanity_check_inputs(parser):
     if opt.recover_warped and (not fulldepth):
         assert(opt.warp_all and (opt.reference_dir is not None))
         # if arrived here then reference_dir will already have been checked for necessary files
+
+def readfits_dodge_throttle(fname, nfail_max=20, tmax=0.15, header=False):
+    success = 0
+
+    nfail = 0
+    while (success == 0):
+
+        assert(nfail < nfail_max)
+
+        try:
+            with time_limit(tmax):
+                out = fitsio.read(fname, header=header)
+                success = 1
+        except TimeoutException, msg:
+            nfail += 1
+            print "file read timed out!"
+
+    return out
