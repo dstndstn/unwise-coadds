@@ -2497,18 +2497,6 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     assert(np.all(np.isfinite(rim)))
     print 'Pixels in range:', len(Yo)
 
-    if ps:
-        # save for later...
-        rr.img = img
-        
-        if medfilt:
-            print 'Median filter: rr.medfilt range', rr.medfilt.min(), rr.medfilt.max()
-            print 'Sky:', sky*zpscale
-            med = median_f(rr.medfilt.astype(np.float32).ravel())
-            rr.rmedfilt = np.zeros((coH,coW), img.dtype)
-            rr.rmedfilt[Yo,Xo] = (rr.medfilt[Yi, Xi].astype(img.dtype) - med)
-            print 'rr.rmedfilt range', rr.rmedfilt.min(), rr.rmedfilt.max()
-
     # Scalar!
     rr.w = (1./sig1**2)
     rr.rimg = np.zeros((coH, coW), img.dtype)
@@ -2532,34 +2520,6 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
         rr.y_l1b = Yi
         rr.x_coadd = Xo
         rr.y_coadd = Yo
-
-    if ps and medfilt and False:
-        plt.clf()
-        rows,cols = 2,2
-        kwa = dict(interpolation='nearest', origin='lower',
-                   vmin=-2.*sig1, vmax=3.*sig1, cmap='gray')
-
-        mm = median_f(rr.medfilt.astype(np.float32))
-        print 'Median medfilt:', 
-        #mm = sky * zpscale
-        print 'Sky*zpscale:', sky*zpscale
-        
-        origimg = rr.img + rr.medfilt - mm
-
-        plt.subplot(rows, cols, 1)
-        plt.imshow(binimg(origimg, 4), **kwa)
-        plt.title('Image')
-        plt.subplot(rows, cols, 2)
-        plt.imshow(binimg(rr.medfilt - mm, 4), **kwa)
-        plt.title('Median')
-        plt.subplot(rows, cols, 3)
-        plt.imshow(binimg(rr.img, 4), **kwa)
-        plt.title('Image - Median')
-        tag = ''
-        if wise.moon_masked:
-            tag += ' moon'
-        plt.suptitle('%s %i%s' % (wise.scan_id, wise.frame_num, tag))
-        ps.savefig()
 
     print Time() - t00
     return rr
