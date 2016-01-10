@@ -56,8 +56,6 @@ if unwise_symlink_dir is None:
 
 wisedir = os.path.join(unwise_symlink_dir, 'wise-frames')
 
-wisedirs = [wisedir, os.path.join(unwise_symlink_dir, 'neowiser-frames'), 'merge_p1bm_frm']
-
 mask_gz = True
 unc_gz = True
 int_gz = None # should get assigned in main
@@ -1001,6 +999,13 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     WISE.intfn  = np.zeros(len(WISE), object)
     WISE.wcs    = np.zeros(len(WISE), object)
 
+    wdirs = ['/project/projectdirs/cosmo/data/wise/allsky/4band_p1bm_frm', 
+             '/project/projectdirs/cosmo/data/wise/cryo_3band/3band_p1bm_frm', 
+             '/project/projectdirs/cosmo/data/wise/postcryo/2band_p1bm_frm',
+             '/project/projectdirs/cosmo/data/wise/neowiser/p1bm_frm',
+             '/project/projectdirs/cosmo/work/wise/wise-l1b-neo+',
+             'merge_p1bm_frm']
+
     # count total number of coadd-space pixels -- this determines memory use
     pixinrange = 0.
 
@@ -1015,7 +1020,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         print 'scan', wise.scan_id, 'frame', wise.frame_num, 'band', band
 
         found = False
-        for wdir in wisedirs + [None]:
+        for wdir in wdirs + [None]:
             download = False
             if wdir is None:
                 download = True
