@@ -269,8 +269,12 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
     Returns WISE frames touching the given RA,Dec box plus margin.
     '''
     # Read WISE frame metadata
-    WISE = fits_table(os.path.join(wisedir, 'WISE-index-L1b.fits'))
-    print 'Read', len(WISE), 'WISE L1b frames'
+    metadir = os.environ.get('UNWISE_META_DIR')
+    if metadir is None:
+        metadir = wisedir
+    index_fname = os.path.join(metadir, 'WISE-index-L1b.fits')
+    WISE = fits_table(index_fname)
+    print 'Read', len(WISE), 'WISE L1b frames from ' + index_fname
     WISE.row = np.arange(len(WISE))
 
     # Coarse cut on RA,Dec box.
@@ -296,9 +300,6 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
     for nbands,name in [(4,'4band'), (3,'3band'), (2,'2band'), (2,'neowiser'),
                         (2, 'neowiser2'),
                         ]:
-        metadir = os.environ.get('UNWISE_META_DIR')
-        if metadir is None:
-            metadir = wisedir
         fn = os.path.join(metadir, 'WISE-l1b-metadata-%s.fits' % name)
         print 'Reading', fn
         bb = [1,2,3,4][:nbands]
