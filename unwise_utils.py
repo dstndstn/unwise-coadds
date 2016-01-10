@@ -166,3 +166,27 @@ def readfits_dodge_throttle(fname, nfail_max=20, tmax=0.15, header=False):
             print "file read timed out!"
 
     return out
+
+def phase_from_scanid(scan_id):
+    # will need to be updated as NEOWISE-R year 2 and year 3 data become available
+    # not vectorized
+    scan_int = int(scan_id[0:5])
+
+    if scan_int < 7101:
+        phase = '4band'
+    elif scan_int == 7101: 
+        scan_letter = scan_id[5]
+        if scan_letter == 'a': 
+            phase = '4band'
+        else:
+            phase = '3band'
+    elif scan_int <= 8744:
+        phase = '3band'
+    elif scan_int <= 12514:
+        phase = '2band'
+    elif scan_int <= 55289:
+        phase = 'neo1'
+    else:
+        phase = 'neo2'
+
+    return phase
