@@ -1151,6 +1151,19 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     hdr.add_record(dict(name='UNW_FRN', value=nframes, comment='unWISE N frames'))
     hdr.add_record(dict(name='UNW_MEDF', value=medfilt, comment='unWISE median filter sz'))
     hdr.add_record(dict(name='UNW_BGMA', value=bgmatch, comment='unWISE background matching?'))
+    # FITS convention stupidity, this won't handle arbitrarily long reference_dir properly...
+    if reference_dir is not None:
+        _reference_dir = os.path.abspath(reference_dir)
+        if len(_reference_dir) > 68:
+            referen1 = _reference_dir[0:68]
+            referen2 = _reference_dir[68:]
+        else:
+            referen1 = _reference_dir
+            referen2 = ''
+    else:
+        referen1 = referen2 = ''
+    hdr.add_record(dict(name='REFEREN1', value=referen1, comment='reference coadd directory'))
+    hdr.add_record(dict(name='REFEREN2', value=referen2, comment='reference coadd directory, continued'))
 
     # make sure there's always a numerical representation of epoch that can go into header
     if epoch is None:
