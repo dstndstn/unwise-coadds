@@ -16,7 +16,7 @@ from scipy.ndimage.measurements import label
 from zp_lookup import ZPLookUp
 import random
 from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask, parse_write_quadrant_masks, RecoveryStats, pad_rebin_weighted, ReferenceImage, QuadrantWarp, reference_image_from_dir
-from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file, download_frameset_1band, sanity_check_inputs, phase_from_scanid, header_reference_keywords
+from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file, download_frameset_1band, sanity_check_inputs, phase_from_scanid, header_reference_keywords, get_l1b_dirs
 
 import fitsio
 
@@ -55,13 +55,6 @@ if unwise_symlink_dir is None:
     unwise_symlink_dir = '/scratch1/scratchdirs/ameisner/code/unwise-coadds'
 
 wisedir = os.path.join(unwise_symlink_dir, 'wise-frames')
-
-wdirs = { '4band' : '/project/projectdirs/cosmo/data/wise/allsky/4band_p1bm_frm', 
-          '3band' : '/project/projectdirs/cosmo/data/wise/cryo_3band/3band_p1bm_frm', 
-          '2band' : '/project/projectdirs/cosmo/data/wise/postcryo/2band_p1bm_frm',
-          'neo1' : '/project/projectdirs/cosmo/data/wise/neowiser/p1bm_frm',
-          'neo2' : '/project/projectdirs/cosmo/work/wise/wise-l1b-neo+',
-          'missing' : 'merge_p1bm_frm' }
 
 mask_gz = True
 unc_gz = True
@@ -1009,6 +1002,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     # count total number of coadd-space pixels -- this determines memory use
     pixinrange = 0.
 
+    wdirs = get_l1b_dirs(yml=True, verbose=True)
     nu = 0
     NU = sum(WISE.use)
     for wi,wise in enumerate(WISE):

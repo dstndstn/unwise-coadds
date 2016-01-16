@@ -3,6 +3,8 @@ import numpy as np
 from astrometry.util.util import Tan
 import fitsio
 from time_limit import time_limit, TimeoutException
+import yaml
+import pprint
 
 def get_l1b_file(basedir, scanid, frame, band, int_gz=False):
     scangrp = scanid[-2:]
@@ -206,3 +208,22 @@ def header_reference_keywords(reference_dir):
         referen1 = referen2 = ''
 
     return referen1, referen2
+
+def get_l1b_dirs(yml=False, verbose=False):
+    if not yml:
+        wdirs = { '4band' : '/project/projectdirs/cosmo/data/wise/allsky/4band_p1bm_frm', 
+                  '3band' : '/project/projectdirs/cosmo/data/wise/cryo_3band/3band_p1bm_frm', 
+                  '2band' : '/project/projectdirs/cosmo/data/wise/postcryo/2band_p1bm_frm',
+                  'neo1' : '/project/projectdirs/cosmo/data/wise/neowiser/p1bm_frm',
+                  'neo2' : '/project/projectdirs/cosmo/work/wise/wise-l1b-neo+',
+                  'missing' : 'merge_p1bm_frm' }
+    else:
+        fname = os.path.join(os.environ.get('UNWISE_META_DIR'), 'l1b_dirs.yml')
+        print 'Reading L1b top-level directory locations from ' + fname
+        wdirs = yaml.safe_load(open(fname))
+
+    if verbose:
+        print 'L1b top-level directories are: '
+        pprint.PrettyPrinter().pprint(wdirs)
+
+    return wdirs
