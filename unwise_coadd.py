@@ -199,7 +199,7 @@ def get_atlas_tiles(r0,r1,d0,d1, W=2048, H=2048, pixscale=2.75):
     pixscale in arcsec/pixel
     '''
     # Read Atlas Image table
-    fn = os.path.join(wisedir, 'wise_allsky_4band_p3as_cdd.fits')
+    fn = os.path.join(os.environ.get('UNWISE_META_DIR'), 'wise_allsky_4band_p3as_cdd.fits')
     print 'Reading', fn
     T = fits_table(fn, columns=['coadd_id', 'ra', 'dec'])
     T.row = np.arange(len(T))
