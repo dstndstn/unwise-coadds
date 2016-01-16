@@ -2904,6 +2904,7 @@ def main():
     print dir(opt)
 
     print 'Running on host: ' + str(os.environ.get('HOST'))
+    print 'Running as user: ' + str(os.environ.get('USER'))
     Time.add_measurement(MemMeas)
 
     W = H = opt.size
