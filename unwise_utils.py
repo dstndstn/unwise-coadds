@@ -190,3 +190,19 @@ def phase_from_scanid(scan_id):
         phase = 'neo2'
 
     return phase
+
+def header_reference_keywords(reference_dir):
+    # FITS convention stupidity, this won't handle arbitrarily long 
+    # reference_dir properly...
+    if reference_dir is not None:
+        _reference_dir = os.path.abspath(reference_dir)
+        if len(_reference_dir) > 68:
+            referen1 = _reference_dir[0:68]
+            referen2 = _reference_dir[68:]
+        else:
+            referen1 = _reference_dir
+            referen2 = ''
+    else:
+        referen1 = referen2 = ''
+
+    return referen1, referen2

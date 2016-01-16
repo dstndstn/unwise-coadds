@@ -16,7 +16,7 @@ from scipy.ndimage.measurements import label
 from zp_lookup import ZPLookUp
 import random
 from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask, parse_write_quadrant_masks, RecoveryStats, pad_rebin_weighted, ReferenceImage, QuadrantWarp, reference_image_from_dir
-from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file, download_frameset_1band, sanity_check_inputs, phase_from_scanid
+from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file, download_frameset_1band, sanity_check_inputs, phase_from_scanid, header_reference_keywords
 
 import fitsio
 
@@ -1151,17 +1151,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     hdr.add_record(dict(name='UNW_FRN', value=nframes, comment='unWISE N frames'))
     hdr.add_record(dict(name='UNW_MEDF', value=medfilt, comment='unWISE median filter sz'))
     hdr.add_record(dict(name='UNW_BGMA', value=bgmatch, comment='unWISE background matching?'))
-    # FITS convention stupidity, this won't handle arbitrarily long reference_dir properly...
-    if reference_dir is not None:
-        _reference_dir = os.path.abspath(reference_dir)
-        if len(_reference_dir) > 68:
-            referen1 = _reference_dir[0:68]
-            referen2 = _reference_dir[68:]
-        else:
-            referen1 = _reference_dir
-            referen2 = ''
-    else:
-        referen1 = referen2 = ''
+
+    referen1, referen2 = header_reference_keywords(reference_dir)
     hdr.add_record(dict(name='REFEREN1', value=referen1, comment='reference coadd directory'))
     hdr.add_record(dict(name='REFEREN2', value=referen2, comment='reference coadd directory, continued'))
 
