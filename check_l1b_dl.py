@@ -1,16 +1,16 @@
 import os
 import fitsio
 import sys
-from unwise_coadd import wdirs
 import time
 import numpy as np
-from unwise_utils import phase_from_scanid, get_l1b_file
+from unwise_utils import phase_from_scanid, get_l1b_file, get_l1b_dirs
 import optparse
 
 def check_l1b_files(indstart, nproc, band, int_gz=False):
     tab = fitsio.read(os.path.join(os.environ.get('UNWISE_META_DIR'), 'WISE-index-L1b.fits'),ex=1)
+    print tab.dtype
     print len(tab)
-    tab = tab[tab['band'] == band]
+    tab = tab[tab['BAND'] == band]
     print len(tab)
     if indstart >= len(tab):
         print 'NO FILES TO CHECK !!!!!!!!'
@@ -21,12 +21,13 @@ def check_l1b_files(indstart, nproc, band, int_gz=False):
     # only check file existence, don't try to check for corruption
 
     dl_good = np.zeros(nproc, dtype=bool)
+    wdirs = get_l1b_dirs(yml=True, verbose=True)
     t0 = time.time()
     for i in range(indstart, indstart+nproc):
-        phase = phase_from_scanid(tab['scan_id'][i])
+        phase = phase_from_scanid(tab['SCAN_ID'][i])
         basedir = wdirs[phase]
         int_gz = (phase == 'neo2')
-        intfn = get_l1b_file(basedir, tab['scan_id'][i], tab['frame_num'][i], band, 
+        intfn = get_l1b_file(basedir, tab['SCAN_ID'][i], tab['FRAME_NUM'][i], band, 
                              int_gz=int_gz)
         if (i % 1000) == 0:
             print i, '  ', intfn
@@ -49,8 +50,8 @@ def check_l1b_files(indstart, nproc, band, int_gz=False):
 
     arr_out = np.zeros((len(dl_good),), dtype=[('scan_id','a6'), ('frame_num','int'), ('dl_good','int'), ('band', 'int')])
     arr_out['dl_good'] = dl_good.astype(int)
-    arr_out['scan_id'] = tab['scan_id'][indstart:(indstart+nproc)]
-    arr_out['frame_num'] = tab['frame_num'][indstart:(indstart+nproc)]
+    arr_out['scan_id'] = tab['SCAN_ID'][indstart:(indstart+nproc)]
+    arr_out['frame_num'] = tab['FRAME_NUM'][indstart:(indstart+nproc)]
     arr_out['band'] = band
     outname = 'dl_good_w' + str(band) + '_' + str(indstart).zfill(8) + '.fits'
     print 'writing output : ' + outname
