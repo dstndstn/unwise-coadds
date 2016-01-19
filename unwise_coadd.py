@@ -1158,10 +1158,49 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
 
     hdr.add_record(dict(name='EPOCH', value=epoch_num, comment='epoch number'))
 
-    # want to change .use to .included for these header keywords eventually ...
+    WISE.included = np.zeros(len(WISE), np.uint8)
+    WISE.sky1 = np.zeros(len(WISE), np.float32)
+    WISE.sky2 = np.zeros(len(WISE), np.float32)
+    WISE.zeropoint = np.zeros(len(WISE), np.float32)
+    WISE.npixoverlap = np.zeros(len(WISE), np.int32)
+    WISE.npixpatched = np.zeros(len(WISE), np.int32)
+    WISE.npixrchi    = np.zeros(len(WISE), np.int32)
+    WISE.weight      = np.zeros(len(WISE), np.float32)
+
+    if not warp_all:
+        Iused = np.flatnonzero(WISE.use & ~(WISE.moon_rej | (WISE.nearby_planets != 0))) # hack !!!!!
+        assert(len(Iused) == len(masks))
+        parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti)
+    else:
+        parse_write_quadrant_masks(outdir, tag, WISE, masks, int_gz, ofn, ti)
+
+    if recover_warped:
+        parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti)
+
+    WISE.delete_column('wcs')
+
+    # downcast datatypes, and work around fitsio's issues with
+    # "bool" columns
+    for c,t in [('included', np.uint8),
+                ('use', np.uint8),
+                ('moon_masked', np.uint8),
+                ('moon_rej', np.uint8),
+                ('imagew', np.int16),
+                ('imageh', np.int16),
+                ('coextent', np.int16),
+                ('imextent', np.int16),
+                ]:
+        WISE.set(c, WISE.get(c).astype(t))
+
+    if warp_list is not None:
+        update_included_bitmask(WISE, warp_list) # this is the --recover_warped case
+
+    if warp_all:
+        update_included_bitmask(WISE, masks)
+
     # might crash if WISE.use is all zeros ...
-    kw_mjdmin = np.min((WISE[WISE.use == 1]).mjd)
-    kw_mjdmax = np.max((WISE[WISE.use == 1]).mjd)
+    kw_mjdmin = np.min((WISE[WISE.included > 0]).mjd)
+    kw_mjdmax = np.max((WISE[WISE.included > 0]).mjd)
 
     hdr.add_record(dict(name='MJDMIN', value=kw_mjdmin, comment='minimum MJD among included L1b frames'))
     hdr.add_record(dict(name='MJDMAX', value=kw_mjdmax, comment='maximum MJD among included L1b frames'))
@@ -1216,47 +1255,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         fitsio.write(ofn, comax.astype(np.float32), header=hdr, clobber=True)
         print 'Wrote', ofn
 
-    WISE.included = np.zeros(len(WISE), np.uint8)
-    WISE.sky1 = np.zeros(len(WISE), np.float32)
-    WISE.sky2 = np.zeros(len(WISE), np.float32)
-    WISE.zeropoint = np.zeros(len(WISE), np.float32)
-    WISE.npixoverlap = np.zeros(len(WISE), np.int32)
-    WISE.npixpatched = np.zeros(len(WISE), np.int32)
-    WISE.npixrchi    = np.zeros(len(WISE), np.int32)
-    WISE.weight      = np.zeros(len(WISE), np.float32)
-
-    if not warp_all:
-        Iused = np.flatnonzero(WISE.use & ~(WISE.moon_rej | (WISE.nearby_planets != 0))) # hack !!!!!
-        assert(len(Iused) == len(masks))
-        parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti)
-    else:
-        parse_write_quadrant_masks(outdir, tag, WISE, masks, int_gz, ofn, ti)
-
-    if recover_warped:
-        parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti)
-
-    WISE.delete_column('wcs')
-
-    # downcast datatypes, and work around fitsio's issues with
-    # "bool" columns
-    for c,t in [('included', np.uint8),
-                ('use', np.uint8),
-                ('moon_masked', np.uint8),
-                ('moon_rej', np.uint8),
-                ('imagew', np.int16),
-                ('imageh', np.int16),
-                ('coextent', np.int16),
-                ('imextent', np.int16),
-                ]:
-        WISE.set(c, WISE.get(c).astype(t))
-
     ofn = prefix + '-frames.fits'
-
-    if warp_list is not None:
-        update_included_bitmask(WISE, warp_list) # this is the --recover_warped case
-
-    if warp_all:
-        update_included_bitmask(WISE, masks)
 
     WISE.writeto(ofn)
     print 'Wrote', ofn
