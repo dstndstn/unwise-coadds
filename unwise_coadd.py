@@ -1137,7 +1137,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                         comment='unWISE code git revision'))
     hdr.add_record(dict(name='UNW_URL', value='https://github.com/dstndstn/unwise-coadds',
                         comment='git URL'))
-    hdr.add_record(dict(name='UNW_DVER', value=3.2,
+    hdr.add_record(dict(name='UNW_DVER', value=3.3,
                         comment='unWISE data model version'))
     hdr.add_record(dict(name='UNW_DATE', value=datetime.datetime.now().isoformat(),
                         comment='unWISE run time'))
