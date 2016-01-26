@@ -185,7 +185,7 @@ def get_wcs_radec_bounds(wcs):
     d0,d1 = dd.min(), dd.max()
     return r0,r1,d0,d1
 
-def get_atlas_tiles(r0,r1,d0,d1, W=2048, H=2048, pixscale=2.75):
+def get_atlas_tiles(r0,r1,d0,d1, W=2048, H=2048, pixscale=2.75, coadd_id=None):
     '''
     Select Atlas Image tiles touching a desired RA,Dec box.
 
@@ -204,6 +204,10 @@ def get_atlas_tiles(r0,r1,d0,d1, W=2048, H=2048, pixscale=2.75):
     print 'Cut to', len(T), 'Atlas tiles near RA,Dec box'
 
     T.coadd_id = np.array([c.replace('_ab41','') for c in T.coadd_id])
+
+    if coadd_id is not None:
+        T = T[T.coadd_id == coadd_id] # hack
+        return T # hack
 
     # Some of them don't *actually* touch our RA,Dec box...
     print 'Checking tile RA,Dec bounds...'
@@ -2979,7 +2983,7 @@ def main():
             print 'Reading', fn
             T = fits_table(fn)
         else:
-            T = get_atlas_tiles(r0,r1,d0,d1, W,H, opt.pixscale)
+            T = get_atlas_tiles(r0,r1,d0,d1, W,H, opt.pixscale, coadd_id=opt.tile)
             T.writeto(fn)
             print 'Wrote', fn
 
