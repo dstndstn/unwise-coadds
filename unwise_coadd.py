@@ -640,6 +640,9 @@ def process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_x
                             rchi_fraction = 0.01 # might need to tune this
                             mm = _coadd_one_round2((wi, N, scanid, qq, r1_coadd.cow1, r1_coadd.cowimg1, r1_coadd.cowimgsq1, tinyw,
                                                     plotfn, ps1, do_dsky, rchi_fraction))
+                            if mm is None:
+                                n_skipped += 1
+                                continue
                             coadd.acc(mm, delmm=delmm)
                             mm.scan_id = wise.scan_id
                             mm.frame_num = wise.frame_num
@@ -1557,6 +1560,10 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
 
     rchi = ((rr.rimg - dsky - subco) * mask * (subw > 0) * (subpp > 0) /
             np.maximum(subpp, 1e-6))
+    if not (np.all(np.isfinite(rchi))):
+        print 'something very unusual is going on'
+        return None
+
     assert(np.all(np.isfinite(rchi)))
 
     badpix = (np.abs(rchi) >= 5.)
