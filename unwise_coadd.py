@@ -2919,7 +2919,7 @@ def main():
     print 'opt:', opt
     print dir(opt)
 
-    print 'Running on host: ' + str(os.environ.get('HOST'))
+    print 'Running on host: ' + str(os.environ.get('HOSTNAME'))
     print 'Running as user: ' + str(os.environ.get('USER'))
     mkl_num_threads = os.environ.get('MKL_NUM_THREADS')
     print 'MKL_NUM_THREADS: ' + (mkl_num_threads if (mkl_num_threads is not None) else '')
