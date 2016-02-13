@@ -266,7 +266,7 @@ def in_radec_box(ra,dec, r0,r1,d0,d1, margin):
                 (dec + margin >= d0) *
                 (dec - margin <= d1))
 
-def get_wise_frames(racen, deccen, band, margin=2.):
+def get_wise_frames(racen, deccen, band, margin=1.7):
     '''
     Returns WISE frames touching the given RA,Dec box plus margin.
     '''
