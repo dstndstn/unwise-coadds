@@ -266,7 +266,7 @@ def in_radec_box(ra,dec, r0,r1,d0,d1, margin):
                 (dec + margin >= d0) *
                 (dec - margin <= d1))
 
-def get_wise_frames(r0,r1,d0,d1, margin=2.):
+def get_wise_frames(r0, r1, d0, d1, band, margin=2.):
     '''
     Returns WISE frames touching the given RA,Dec box plus margin.
     '''
@@ -274,7 +274,7 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
     metadir = os.environ.get('UNWISE_META_DIR')
     if metadir is None:
         metadir = wisedir
-    index_fname = os.path.join(metadir, 'WISE-index-L1b.fits')
+    index_fname = os.path.join(metadir, 'WISE-index-L1b_w'+str(band)+'.fits')
     WISE = fits_table(index_fname)
     print 'Read', len(WISE), 'WISE L1b frames from ' + index_fname
     WISE.row = np.arange(len(WISE))
@@ -2732,7 +2732,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
     r1_coadd = FirstRoundCoadd(coimg, cow, coppstd, coimgsq)
     return rimgs, r1_coadd, rstats, cube
 
-def get_wise_frames_for_dataset(dataset, r0,r1,d0,d1,
+def get_wise_frames_for_dataset(dataset, band, r0,r1,d0,d1,
                                 randomize=False, cache=True, dirnm=None):
     fn = '%s-frames.fits' % dataset
     if dirnm is not None:
@@ -2741,7 +2741,7 @@ def get_wise_frames_for_dataset(dataset, r0,r1,d0,d1,
         print 'Reading', fn
         WISE = fits_table(fn)
     else:
-        WISE = get_wise_frames(r0,r1,d0,d1)
+        WISE = get_wise_frames(r0,r1,d0,d1,band)
         # bool -> uint8 to avoid confusing fitsio
         WISE.moon_masked = WISE.moon_masked.astype(np.uint8)
         if randomize:
@@ -3007,7 +3007,7 @@ def main():
     if not opt.plots:
         ps = None
 
-    WISE = get_wise_frames_for_dataset(dataset, r0,r1,d0,d1)
+    WISE = get_wise_frames_for_dataset(dataset, (opt.band)[0], r0,r1,d0,d1)
 
     if opt.allmd5:
         Ibad = check_md5s(WISE)
