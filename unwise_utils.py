@@ -5,6 +5,7 @@ import fitsio
 from time_limit import time_limit, TimeoutException
 import yaml
 import pprint
+from astrometry.util.starutil_numpy import degrees_between
 
 def get_l1b_file(basedir, scanid, frame, band, int_gz=False):
     scangrp = scanid[-2:]
@@ -227,3 +228,15 @@ def get_l1b_dirs(yml=False, verbose=False):
         pprint.PrettyPrinter().pprint(wdirs)
 
     return wdirs
+
+def is_nearby(ra, dec, racen, deccen, margin, fast=True):
+    if not fast:
+        dangle = degrees_between(ra, dec, racen, deccen)
+        return (dangle <= margin)
+    else:
+        # do a binary search
+        ind = np.searchsorted(dec, [deccen-margin, deccen+margin])
+        dangle = degrees_between(ra[ind[0]:ind[1]], dec[ind[0]:ind[1]], racen, deccen)
+        nearby = np.zeros(len(ra),dtype=bool)
+        nearby[ind[0]:ind[1]] = (dangle <= margin)
+        return nearby

@@ -16,7 +16,7 @@ from scipy.ndimage.measurements import label
 from zp_lookup import ZPLookUp
 import random
 from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask, parse_write_quadrant_masks, RecoveryStats, pad_rebin_weighted, ReferenceImage, QuadrantWarp, reference_image_from_dir
-from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file, download_frameset_1band, sanity_check_inputs, phase_from_scanid, header_reference_keywords, get_l1b_dirs
+from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file, download_frameset_1band, sanity_check_inputs, phase_from_scanid, header_reference_keywords, get_l1b_dirs, is_nearby
 
 import fitsio
 
@@ -266,7 +266,7 @@ def in_radec_box(ra,dec, r0,r1,d0,d1, margin):
                 (dec + margin >= d0) *
                 (dec - margin <= d1))
 
-def get_wise_frames(r0, r1, d0, d1, band, margin=2.):
+def get_wise_frames(racen, deccen, band, margin=2.):
     '''
     Returns WISE frames touching the given RA,Dec box plus margin.
     '''
@@ -280,7 +280,10 @@ def get_wise_frames(r0, r1, d0, d1, band, margin=2.):
     WISE.row = np.arange(len(WISE))
 
     # Coarse cut on RA,Dec box.
-    WISE.cut(in_radec_box(WISE.ra, WISE.dec, r0,r1,d0,d1, margin))
+    t0 = _time()
+    WISE.cut(is_nearby(WISE.ra, WISE.dec, racen, deccen, margin, fast=True))
+    dt = _time()-t0
+    print 'figuring out which frames are nearby took ' + str(dt) + ' seconds'
     print 'Cut to', len(WISE), 'WISE frames near RA,Dec box'
 
     # Join to WISE Single-Frame Metadata Tables
@@ -315,7 +318,7 @@ def get_wise_frames(r0, r1, d0, d1, band, margin=2.):
         T = fits_table(fn, columns=cols)
         print 'Read', len(T), 'from', fn
         # Cut with extra large margins
-        T.cut(in_radec_box(T.ra, T.dec, r0,r1,d0,d1, 2.*margin))
+        T.cut(is_nearby(T.ra, T.dec, racen, deccen, 2.*margin, fast=True))
         print 'Cut to', len(T), 'near RA,Dec box'
         if len(T) == 0:
             continue
@@ -2732,7 +2735,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
     r1_coadd = FirstRoundCoadd(coimg, cow, coppstd, coimgsq)
     return rimgs, r1_coadd, rstats, cube
 
-def get_wise_frames_for_dataset(dataset, band, r0,r1,d0,d1,
+def get_wise_frames_for_dataset(dataset, band, racen, deccen,
                                 randomize=False, cache=True, dirnm=None):
     fn = '%s-frames.fits' % dataset
     if dirnm is not None:
@@ -2741,7 +2744,7 @@ def get_wise_frames_for_dataset(dataset, band, r0,r1,d0,d1,
         print 'Reading', fn
         WISE = fits_table(fn)
     else:
-        WISE = get_wise_frames(r0,r1,d0,d1,band)
+        WISE = get_wise_frames(racen, deccen, band)
         # bool -> uint8 to avoid confusing fitsio
         WISE.moon_masked = WISE.moon_masked.astype(np.uint8)
         if randomize:
@@ -3007,7 +3010,7 @@ def main():
     if not opt.plots:
         ps = None
 
-    WISE = get_wise_frames_for_dataset(dataset, (opt.band)[0], r0,r1,d0,d1)
+    WISE = get_wise_frames_for_dataset(dataset, opt.band[0], T.ra, T.dec)
 
     if opt.allmd5:
         Ibad = check_md5s(WISE)
