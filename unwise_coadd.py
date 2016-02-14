@@ -410,7 +410,7 @@ def check_md5s(WISE):
 
 def cut_to_epoch(WISE, epoch, before, after):
     if epoch is not None:
-        ebreaks = get_epoch_breaks(WISE.mjd)
+        ebreaks = get_epoch_breaks(WISE[WISE.qual_frame > 0].mjd)
         assert(epoch <= len(ebreaks))
         if epoch > 0:
             WISE = WISE[WISE.mjd >= ebreaks[epoch - 1]]
