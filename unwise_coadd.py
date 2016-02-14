@@ -2577,10 +2577,17 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
                                                          delete_xy_coords=True, reference=reference,
                                                          do_apply_warp=True, save_raw=False, coadd=None, only_good_chi2=True, debug=False,
                                                          do_rebin=True)
-            while len(rimgs_rec):
-                rr_rec = rimgs_rec.pop(0)
-                if rr_rec.warped:
-                    rimgs.append(rr_rec)
+            if rimgs_rec is not None:
+                while len(rimgs_rec):
+                    rr_rec = rimgs_rec.pop(0)
+                    if rr_rec.warped:
+                        if rimgs is None:
+                            rimgs = []
+                        rimgs.append(rr_rec)
+
+    if rimgs is None:
+        print 'No usable frames to coadd !!'
+        assert(False)
 
     print 'Accumulating first-round coadds...'
     cube = None
