@@ -6,6 +6,7 @@ from time_limit import time_limit, TimeoutException
 import yaml
 import pprint
 from astrometry.util.starutil_numpy import degrees_between
+import bisect
 
 def get_l1b_file(basedir, scanid, frame, band, int_gz=False):
     scangrp = scanid[-2:]
@@ -56,17 +57,45 @@ def get_dir_for_coadd(outdir, coadd_id):
     # base/RRR/RRRRsDDD/unwise-*
     return os.path.join(outdir, coadd_id[:3], coadd_id)
 
-def get_epoch_breaks(mjds):
+def get_epoch_breaks(mjds, subdivide=False):
     mjds = np.sort(mjds)
 
     # define an epoch either as a gap of more than 3 months
     # between frames, or as > 6 months since start of epoch.
     start = mjds[0]
     ebreaks = []
+    starts = [np.min(mjds)]
+    ends = []
     for lastmjd,mjd in zip(mjds, mjds[1:]):
         if (mjd - lastmjd >= 90.) or (mjd - start >= 180.):
             ebreaks.append((mjd + lastmjd) / 2.)
             start = mjd
+            
+            starts.append(mjd)
+            ends.append(lastmjd)
+    ends.append(np.max(mjds))
+    # meant to avoid having excessively long epochs near ecl poles
+    if subdivide:
+        new_breaks_all = []
+        # figure out the length of each epoch
+        mjd_bdy = [min(mjds)]
+        mjd_bdy.extend(ebreaks)
+        mjd_bdy.append(max(mjds))
+        n_epoch = len(ebreaks)+1
+        for i in range(n_epoch):
+            mjd_min = starts[i]
+            mjd_max = ends[i]
+            dt = mjd_max-mjd_min
+            if int(round(dt/10.0)) > 1:
+                print 'excessively long epoch : ', dt, ' days'
+            # create new epoch breaks that subdivide the 
+                n_new_breaks = int(round(dt/10.0)) - 1
+                new_dt = dt/(n_new_breaks + 1)
+                new_breaks = [(mjd_min + new_dt*(j+1)) for j in range(n_new_breaks)]
+                new_breaks_all.extend(new_breaks)
+        for k in range(len(new_breaks_all)):
+            bisect.insort_left(ebreaks, new_breaks_all[k])
+
     print 'Defined epoch breaks', ebreaks
     print 'Found', len(ebreaks), 'epoch breaks'
     return ebreaks

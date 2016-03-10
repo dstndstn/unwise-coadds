@@ -408,9 +408,16 @@ def check_md5s(WISE):
             ibad.append(i)
     return np.array(ibad)
 
-def cut_to_epoch(WISE, epoch, before, after):
+def cut_to_epoch(WISE, epoch, before, after, ti=None):
     if epoch is not None:
-        ebreaks = get_epoch_breaks(WISE[WISE.qual_frame > 0].mjd)
+        if ti is not None:
+            lambd, beta = radectoecliptic(ti.ra, ti.dec)
+            subdivide = (np.abs(beta) > 80)
+        else:
+            subdivide = False
+
+        ebreaks = get_epoch_breaks(WISE[WISE.qual_frame > 0].mjd, 
+                                   subdivide=subdivide)
         assert(epoch <= len(ebreaks))
         if epoch > 0:
             WISE = WISE[WISE.mjd >= ebreaks[epoch - 1]]
@@ -889,7 +896,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
 
     # Use a subset of frames?
     if not compare_moon_all:
-        WISE = cut_to_epoch(WISE, epoch, before, after)
+        WISE = cut_to_epoch(WISE, epoch, before, after, ti=ti)
 
     if bgmatch or center:
         # reorder by dist from center
