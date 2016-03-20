@@ -132,7 +132,10 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
 
     assert((order >= 0) and (order <= 4))
     # should this actually use <= 0 rather than == 0 ?
-    assert(np.sum(unc_ref == 0) == 0) 
+    assert(np.sum(unc_ref == 0) == 0)
+    assert(len(x_l1b_quad) > 0)
+    assert(len(y_l1b_quad) > 0)
+    assert(len(x_l1b_quad) == len(y_l1b_quad))
 
     diff = pix_l1b_quad - pix_ref
     npix = len(diff)
