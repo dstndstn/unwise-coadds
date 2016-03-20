@@ -1852,6 +1852,14 @@ def do_one_warp(rimg, wise, reference, debug=False, do_rebin=False):
     if order is None:
         print 'Too few pixels :  ' + str(npix_good) + ', not computing warp'
         return None
+
+    # don't rebin if polynomial correction is just an offset
+    if order == 0:
+        print 'not rebinning !!'
+        binfac = 1
+        do_rebin = False
+        par = WarpMetaParameters(binfac=binfac)
+
     _t0 = _time()
     imref, sigref, nref = reference.extract_cutout(rimg)
 
