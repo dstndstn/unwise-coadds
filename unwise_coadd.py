@@ -2880,7 +2880,7 @@ def main():
     # adding this default value of before is appropriate for first year NEOWISER processing
     # to avoid special non-public Hyades data
     parser.add_option('--before', type=float, help='Keep only input frames before the given MJD',
-                      default=57058.9938976122)
+                      default=100000.0)
     parser.add_option('--after',  type=float, help='Keep only input frames after the given MJD')
 
     parser.add_option('--int_gz', dest='int_gz', action='store_true', default=False,
@@ -2899,9 +2899,13 @@ def main():
                       help='For time-resolved coadd, warp all exposures relative to external reference image?')
     parser.add_option('--reference_dir', dest='reference_dir', type=str, default=None, 
                       help='Directory containing reference image when --warp_all option activated')
+    parser.add_option('--no_sanity_check', dest='no_sanity_check', action='store_true', default=False,
+                      help='Skip sanity checks of whether the specified combinations of options make sense.')
 
-    sanity_check_inputs(parser)
     opt,args = parser.parse_args()
+
+    if not opt.no_sanity_check:
+        sanity_check_inputs(parser)
 
     global int_gz
     int_gz = opt.int_gz
