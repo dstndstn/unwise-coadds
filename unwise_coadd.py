@@ -1209,7 +1209,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                 ]:
         WISE.set(c, WISE.get(c).astype(t))
 
-    if warp_list is not None:
+    if (warp_list is not None) and (not warp_all):
         update_included_bitmask(WISE, warp_list) # this is the --recover_warped case
 
     if warp_all:

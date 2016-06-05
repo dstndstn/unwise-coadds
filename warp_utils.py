@@ -386,6 +386,9 @@ def update_included_bitmask(WISE, warp_list):
 
     for warp in warp_list:
         assert(warp.quadrant != -1)
+        if hasattr(warp, 'included'):
+            if not warp.included:
+                continue
         val = int(2**(warp.quadrant))
         # WISE input should be modified in calling scope
         WISE.included[(WISE.scan_id == warp.scan_id) & (WISE.frame_num == warp.frame_num)] |= val
