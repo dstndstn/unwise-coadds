@@ -245,7 +245,7 @@ def get_l1b_dirs(yml=False, verbose=False):
                   '3band' : '/project/projectdirs/cosmo/data/wise/cryo_3band/3band_p1bm_frm', 
                   '2band' : '/project/projectdirs/cosmo/data/wise/postcryo/2band_p1bm_frm',
                   'neo1' : '/project/projectdirs/cosmo/data/wise/neowiser/p1bm_frm',
-                  'neo2' : '/project/projectdirs/cosmo/work/wise/wise-l1b-neo+',
+                  'neo2' : '/project/projectdirs/cosmo/staging/wise/neowiser2/neowiser/p1bm_frm',
                   'missing' : 'merge_p1bm_frm' }
     else:
         fname = os.path.join(os.environ.get('UNWISE_META_DIR'), 'l1b_dirs.yml')
