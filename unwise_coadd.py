@@ -241,7 +241,9 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
     # 4-band, 3-band, or 2-band phase
     WISE.phase = np.zeros(len(WISE), np.uint8)
     
-    for nbands,name in [(4,'4band'), (3,'3band'), (2,'2band'), (2,'neowiser')]:
+    for nbands,name in [(4,'4band'), (3,'3band'), (2,'2band'), (2,'neowiser'),
+                        (2, 'neowiser2'),
+                        ]:
         fn = os.path.join(wisedir, 'WISE-l1b-metadata-%s.fits' % name)
         print 'Reading', fn
         bb = [1,2,3,4][:nbands]
@@ -377,8 +379,12 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     wisepixscale = 2.75
 
     if version is None:
-        version = get_svn_version()
-    print 'SVN version info:', version
+        from astrometry.util.run_command import run_command
+        rtn,version,err = run_command('git describe')
+        if rtn:
+            raise RuntimeError('Failed to get version string (git describe):' + ver + err)
+        version = version.strip()
+    print '"git describe" version info:', version
 
     if not force_outdir:
         outdir = get_dir_for_coadd(outdir, ti.coadd_id)
@@ -540,7 +546,6 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     WISE.intfn  = np.zeros(len(WISE), object)
     WISE.wcs    = np.zeros(len(WISE), object)
 
-    failedfiles = []
     # count total number of coadd-space pixels -- this determines memory use
     pixinrange = 0.
 
@@ -554,11 +559,30 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         print nu, 'of', NU
         print 'scan', wise.scan_id, 'frame', wise.frame_num, 'band', band
 
+        failedfiles = []
         found = False
-        for wdir in wisedirs:
+        for wdir in wisedirs + [None]:
+            download = False
+            if wdir is None:
+                download = True
+                wdir = 'merge_p1bm_frm'
+
             intfn = get_l1b_file(wdir, wise.scan_id, wise.frame_num, band)
             print 'intfn', intfn
-            intfnx = intfn.replace(wdir+'/','')
+            intfnx = intfn.replace(wdir+'/', '')
+
+            if download:
+                # Try to download the file from IRSA.
+                cmd = (('(wget -r -N -nH -np -nv --cut-dirs=4 -A "*w%i*" ' +
+                        '"http://irsa.ipac.caltech.edu/ibe/data/wise/merge/merge_p1bm_frm/%s/")') %
+                        (band, os.path.dirname(intfnx)))
+                print
+                print 'Trying to download file:'
+                print cmd
+                print
+                os.system(cmd)
+                print
+
             if os.path.exists(intfn):
                 try:
                     wcs = Sip(intfn)
@@ -575,9 +599,9 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                 break
             else:
                 print 'missing unc or msk file'
-                break
+                continue
         if not found:
-            print 'Not found'
+            print 'WARNING: Not found: scan', wise.scan_id, 'frame', wise.frame_num, 'band', band
             failedfiles.append(intfnx)
             continue
 
@@ -664,11 +688,6 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         for f in failedfiles:
             print '  ', f
         print
-        for f in failedfiles:
-            cmd = ('(wget -r -N -nH -np -nv --cut-dirs=4 -A "*w%i*" "http://irsa.ipac.caltech.edu/ibe/data/wise/merge/merge_p1bm_frm/%s/")' %
-                   (band, os.path.dirname(f).replace(wisedir + '/', '')))
-            os.system(cmd)
-        #return -1
 
     # Now we can make a more informed estimate of memory use.
     if maxmem:
@@ -724,9 +743,10 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                         comment='Magnitude zeropoint (in Vega mag)'))
     hdr.add_record(dict(name='UNW_SKY', value=cosky,
                         comment='Background value subtracted from coadd img'))
-    hdr.add_record(dict(name='UNW_VER', value=version['Revision'],
-                        comment='unWISE code SVN revision'))
-    hdr.add_record(dict(name='UNW_URL', value=version['URL'], comment='SVN URL'))
+    hdr.add_record(dict(name='UNW_VER', value=version,
+                        comment='unWISE code git revision'))
+    hdr.add_record(dict(name='UNW_URL', value='https://github.com/dstndstn/unwise-coadds',
+                        comment='git URL'))
     hdr.add_record(dict(name='UNW_DVER', value=1,
                         comment='unWISE data model version'))
     hdr.add_record(dict(name='UNW_DATE', value=datetime.datetime.now().isoformat(),
@@ -1067,6 +1087,8 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     priorw = nprior * rr.w
     subpp = np.sqrt((subv * subw + priorv * priorw) / (subw + priorw))
     
+    # rr.rmask bit value 1 indicates that the pixel is within the coadd
+    # region.
     mask = (rr.rmask & 1).astype(bool)
 
     # like in the WISE Atlas Images, estimate sky difference via
@@ -1089,12 +1111,15 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     # Bit 1: abs(rchi) >= 5
     badpixmask = badpix.astype(np.uint8)
     # grow by a small margin
-    badpix = binary_dilation(badpix)
+    badpix = binary_dilation(badpixmask)
     # Bit 2: grown
     badpixmask += (2 * badpix)
-    # Add rchi-masked pixels to the mask
-    # (clear bit 2)
-    rr.rmask[badpix] &= ~2
+
+    # Add dilated rchi-masked pixels to the "rmask" (clear value 0x2)
+    rr.rmask[badpix] &= (0xff - 0x2)
+
+    # "omask" is the file we're going to write out saying which pixels
+    # were rchi masked, in L1b pixel space.
     mm.omask = np.zeros((rr.wcs.get_height(), rr.wcs.get_width()),
                         badpixmask.dtype)
     try:
@@ -1134,6 +1159,8 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
         mm.coimg   = mask * rr.w * rimg
         mm.cow     = mask * rr.w
         mm.con     = mask
+        # mm.rmask2 is bit value 2 from rr.rmask: original L1b pixel good
+        # times dilated rchi-based pixel good.
         mm.rmask2  = (rr.rmask & 2).astype(bool)
 
     mm.dsky = dsky / rr.zpscale
@@ -2216,8 +2243,10 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     rr.rimg = np.zeros((coH, coW), img.dtype)
     rr.rimg[Yo, Xo] = rim
     rr.rmask = np.zeros((coH, coW), np.uint8)
-    # bit 0: old rmask
-    # bit 1: old rmask2
+    '''
+    rr.rmask bit 0 (value 1): This pixel is within the coadd footprint.
+    rr.rmask bit 1 (value 2): This pixel is good.
+    '''
     rr.rmask[Yo, Xo] = 1 + 2*goodmask[Yi, Xi]
     rr.wcs = wcs
     rr.sky = sky
@@ -2303,6 +2332,9 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
                 rr.bgmatch = bg
                 
         # note, rr.w is a scalar.
+        # (rr.rmask & 1) means "use these coadd pixels"
+        #  rr.rimg is 0 where that bit is zero, so no need to multiply by
+        #  that mask when accumulating here.
         coimgsq[slc] += rr.w * (rr.rimg**2)
         coimg  [slc] += rr.w *  rr.rimg
         cow    [slc] += rr.w * (rr.rmask & 1)
@@ -2562,6 +2594,9 @@ def main():
     from astrometry.util.multiproc import multiproc
 
     parser = optparse.OptionParser('%prog [options]')
+
+    #parser.add_option('--wisedir', default='wise-frames', help='Directory containing WISE L1b data')
+
     parser.add_option('--threads', dest='threads', type=int, help='Multiproc',
                       default=None)
     parser.add_option('--threads1', dest='threads1', type=int, default=None,
@@ -2647,6 +2682,8 @@ def main():
                       help='Build coadd at given RA center')
     parser.add_option('--dec', dest='dec', type=float, default=None,
                       help='Build coadd at given Dec center')
+    parser.add_option('--band', type=int, default=None, action='append',
+                      help='with --ra,--dec: band(s) to do (1,2,3,4)')
 
     parser.add_option('--tile', dest='tile', type=str, default=None,
                       help='Run a single tile, eg, 0832p196')
@@ -2860,21 +2897,35 @@ def main():
         else:
             assert(False)
 
+    tiles = []
+    
+
     if radec:
         T = fits_table()
         T.coadd_id = np.array([dataset])
         T.ra = np.array([opt.ra])
         T.dec = np.array([opt.dec])
         if len(args) == 0:
-            arr = arrayblock
+            if len(opt.band):
+                tiles.extend([b * arrayblock for b in opt.band])
+            else:
+                tiles.append(arrayblock)
     else:
         fn = '%s-atlas.fits' % dataset
+        print 'Looking for file', fn
         if os.path.exists(fn):
             print 'Reading', fn
             T = fits_table(fn)
         else:
             T = get_atlas_tiles(r0,r1,d0,d1, W,H, opt.pixscale)
             T.writeto(fn)
+            print 'Wrote', fn
+
+        if opt.tile and len(args) == 0 and len(opt.band):
+            tiles.extend([b * arrayblock for b in opt.band])
+        elif not len(args):
+            tiles.append(arr)
+
 
     if opt.plotprefix is None:
         opt.plotprefix = dataset
@@ -2918,11 +2969,6 @@ def main():
     if opt.preprocess:
         print 'Preprocessing done'
         sys.exit(0)
-
-    tiles = []
-    
-    if not len(args):
-        tiles.append(arr)
 
     for a in args:
         # parse "qsub -t" format: n,n1-n2,n3
