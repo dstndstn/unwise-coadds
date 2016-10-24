@@ -52,6 +52,8 @@ def test_zp(band, phase):
         mjd_test = np.arange(55460, 55605, dt)
     if phase == 'neowiser':
         mjd_test = np.arange(56630, 57015, dt)
+    if phase == 'neowiser2':
+        mjd_test = np.arange(57000, 57375, dt)
 
     zp_lookup_obj = zp_lookup.PiecewisePolynomialInterpolator(band, phase)
 
