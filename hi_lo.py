@@ -43,15 +43,3 @@ class HiLo():
 
         self.id_min[slc] = sub_id_min
         self.id_max[slc] = sub_id_max
-
-#        im_min = self.im_min[slc]
-#        im_max = self.im_max[slc]
-
-#        im_min = np.minimum(im_min, rimg.rimg)
-#        im_max = np.maximum(im_max, rimg.rimg)
-
-#        self.im_min[slc] = im_min
-#        self.im_max[slc] = im_max
-
-        # update id_min
-        # update id_max
