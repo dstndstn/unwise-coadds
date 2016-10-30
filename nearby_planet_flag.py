@@ -28,11 +28,19 @@ def _zfill3(string):
 def get_all_unique_framesets():
     # read in the full L1b frame index and return a version
     # with only the unique (scan_id, frame_num) pairs
-    fdir = '/project/projectdirs/cosmo/data/wise/merge/merge_p1bm_frm'
-    fname = 'WISE-index-L1b.fits'
-    fname = os.path.join(fdir, fname)
+    fdir = '/global/cscratch1/sd/ameisner/code/unwise-coadds/etc_p9'
+    #fname = 'WISE-index-L1b.fits'
+    fname1 = os.path.join(fdir, 'WISE-index-L1b_w1.fits')
+    fname2 = os.path.join(fdir, 'WISE-index-L1b_w2.fits')
 
-    tab = fitsio.read(fname, ext=1, header=False)
+    tab1 = fitsio.read(fname1, ext=1, header=False)
+    tab2 = fitsio.read(fname2, ext=1, header=False)
+    tab = np.append(tab1, tab2)
+    del tab1
+    del tab2
+
+    print np.min(tab['MJD'])
+    print np.max(tab['MJD'])
 
     # construct padded string array for frame_num,i think padding is actually
     # not necessary but oh well
@@ -66,7 +74,8 @@ def get_planet_framesets():
     fnames = ['WISE-l1b-metadata-4band.fits',
               'WISE-l1b-metadata-3band.fits',
               'WISE-l1b-metadata-2band.fits',
-              'WISE-l1b-metadata-neowiser.fits']
+              'WISE-l1b-metadata-neowiser.fits',
+              'WISE-l1b-metadata-neowiser2.fits']
 
     fnames.reverse()
     arr_out = None
@@ -124,7 +133,7 @@ def compute_separations_nearby():
         subframes = all_frames[ind_l:ind_u]
         print len(subframes), n_expected
 
-        assert(n_expected == len(subframes))
+        assert((n_expected == len(subframes)) or (n_expected == (len(subframes)-1))) # -1 thing is a HACK !!
         print 'number of difference angles to compute ' + str(ind_u-ind_l)
         # use dustin's astrometry.net difference angle code to compute
         # difference angles
