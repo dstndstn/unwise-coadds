@@ -17,6 +17,7 @@ from zp_lookup import ZPLookUp
 import random
 from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask, parse_write_quadrant_masks, RecoveryStats, pad_rebin_weighted, ReferenceImage, QuadrantWarp, reference_image_from_dir
 from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file, download_frameset_1band, sanity_check_inputs, phase_from_scanid, header_reference_keywords, get_l1b_dirs, is_nearby
+from hi_lo import HiLo
 
 import fitsio
 
@@ -837,7 +838,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
               bgmatch, center, minmax, rchi_fraction, do_cube1, epoch,
               before, after, recover_warped, do_rebin, try_download,
               force_outdir=False, just_image=False, warp_all=False,
-              reference_dir=None):
+              reference_dir=None, hi_lo_rej=False):
     '''
     Create coadd for one tile & band.
     '''
@@ -1118,7 +1119,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                        band, mp1, mp2, do_cube, medfilt, plots2=plots2, do_dsky=do_dsky,
                        checkmd5=checkmd5, bgmatch=bgmatch, minmax=minmax,
                        rchi_fraction=rchi_fraction, do_cube1=do_cube1, recover=recover, do_rebin=do_rebin,
-                       warp_all=warp_all, reference_dir=reference_dir)
+                       warp_all=warp_all, reference_dir=reference_dir, hi_lo_rej=hi_lo_rej)
     except:
         print 'coadd_wise failed:'
         import traceback
@@ -1936,7 +1937,7 @@ def recover_warped_frames(WISE, coadd, reference, cowcs, zp_lookup_obj, r1_coadd
 def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                do_cube, medfilt, plots2=False, table=True, do_dsky=False,
                checkmd5=False, bgmatch=False, minmax=False, rchi_fraction=0.01, do_cube1=False, 
-               recover=None, do_rebin=True, warp_all=False, reference_dir=None):
+               recover=None, do_rebin=True, warp_all=False, reference_dir=None, hi_lo_rej=False):
     L = 3
     W = cowcs.get_width()
     H = cowcs.get_height()
@@ -1950,7 +1951,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     # Round-1 coadd:
     (rimgs, r1_coadd, rstats, cube1) = _coadd_wise_round1(
         cowcs, WISE, ps, band, table, L, tinyw, mp1, medfilt, checkmd5,
-        bgmatch, do_cube1, reference=reference, recover=recover)
+        bgmatch, do_cube1, reference=reference, recover=recover, hi_lo_rej=hi_lo_rej)
 
     if not warp_all:
         assert(len(rimgs) == len(WISE))
@@ -2547,6 +2548,8 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     rr.cosubwcs = cosubwcs
     rr.wcs_full = wcs_full
     rr.cowcs_full = cowcs
+    rr.scan_id = wise.scan_id
+    rr.frame_num = wise.frame_num
 
     if store_xy_coords:
         rr.x_l1b = Xi
@@ -2559,7 +2562,7 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
 
 
 def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
-                       checkmd5, bgmatch, cube1, reference=None, recover=None):
+                       checkmd5, bgmatch, cube1, reference=None, recover=None, hi_lo_rej=False):
                        
     '''
     Do round-1 coadd.
@@ -2605,6 +2608,17 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
         assert(False)
 
     print 'Accumulating first-round coadds...'
+
+    if hi_lo_rej:
+        hilo = HiLo()
+
+        _t0 = _time()
+        print 'constructing min and max coadd images based on first round L1b images'
+        for iii, rrr in enumerate(rimgs):
+            if rrr is not None:
+                hilo.update(rrr)
+        print (_time() - _t0), ' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
+
     cube = None
     if cube1:
         cube = np.zeros((len([rr for rr in rimgs if rr is not None]), H, W),
@@ -2630,9 +2644,15 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
                 rr.bgmatch = bg
                 
         # note, rr.w is a scalar.
-        coimgsq[slc] += rr.w * (rr.rimg**2)
-        coimg  [slc] += rr.w *  rr.rimg
-        cow    [slc] += rr.w * (rr.rmask & 1)
+        id = rr.scan_id + str(rr.frame_num).zfill(3)
+        if hi_lo_rej:
+            good = ( ((hilo.id_min)[slc] != id) & ((hilo.id_max)[slc] != id) )
+        else:
+            good = 1.0
+
+        coimgsq[slc] += rr.w * good * (rr.rimg**2)
+        coimg  [slc] += rr.w * good *  rr.rimg
+        cow    [slc] += rr.w * good * (rr.rmask & 1)
 
         if cube1:
             cube[(z,)+slc] = rr.rimg.astype(np.float32)
@@ -2654,7 +2674,6 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
     # Per-pixel std
     coppstd = np.sqrt(np.maximum(0, coimgsq / np.maximum(cow, tinyw)
                                  - coimg**2))
-
     if ps:
         plt.clf()
         for rr in rimgs:
@@ -2901,6 +2920,8 @@ def main():
                       help='Directory containing reference image when --warp_all option activated')
     parser.add_option('--no_sanity_check', dest='no_sanity_check', action='store_true', default=False,
                       help='Skip sanity checks of whether the specified combinations of options make sense.')
+    parser.add_option('--hi_lo_rej', dest='hi_lo_rej', action='store_true', default=False,
+                      help='Include a min/max rejection stpe during first round coaddition.')
 
     opt,args = parser.parse_args()
 
@@ -3097,7 +3118,7 @@ def main():
                      medfilt, opt.maxmem, opt.dsky, opt.md5, opt.bgmatch,
                      opt.center, opt.minmax, opt.rchi_fraction, opt.cube1,
                      opt.epoch, opt.before, opt.after, opt.recover_warped, opt.do_rebin, opt.try_download,
-                     warp_all=opt.warp_all, reference_dir=opt.reference_dir):
+                     warp_all=opt.warp_all, reference_dir=opt.reference_dir, hi_lo_rej=opt.hi_lo_rej):
             return -1
         print 'Tile', T.coadd_id[tileid], 'band', band, 'took:', Time()-t0
     return 0
