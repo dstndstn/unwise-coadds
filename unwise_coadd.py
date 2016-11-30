@@ -1113,7 +1113,7 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     # grow by a small margin
     badpix = binary_dilation(badpixmask)
     # Bit 2: grown
-    badpixmask += (2 * badpix)
+    badpixmask += (2 * badpix).astype(np.uint8)
 
     # Add dilated rchi-masked pixels to the "rmask" (clear value 0x2)
     rr.rmask[badpix] &= (0xff - 0x2)
