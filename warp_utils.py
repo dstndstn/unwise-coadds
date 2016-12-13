@@ -393,7 +393,7 @@ def update_included_bitmask(WISE, warp_list):
         # WISE input should be modified in calling scope
         WISE.included[(WISE.scan_id == warp.scan_id) & (WISE.frame_num == warp.frame_num)] |= val
 
-def parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti):
+def parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti, output_masks=True):
 
     if qmasks is None:
         return
@@ -415,7 +415,8 @@ def parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti):
         WISE.weight[exp_mask] = qmask.w
 
     # call merge_write_quadrant_masks to actually write the bitmask images
-    merge_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti)
+    if output_masks:
+        merge_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti)
 
 def merge_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti):
     # figure out the list of unique scan_id, frame_num pairs

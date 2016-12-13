@@ -838,7 +838,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
               bgmatch, center, minmax, rchi_fraction, do_cube1, epoch,
               before, after, recover_warped, do_rebin, try_download,
               force_outdir=False, just_image=False, warp_all=False,
-              reference_dir=None, hi_lo_rej=False):
+              reference_dir=None, hi_lo_rej=False, output_masks=True):
     '''
     Create coadd for one tile & band.
     '''
@@ -1188,12 +1188,12 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     if not warp_all:
         Iused = np.flatnonzero(WISE.use & ~(WISE.moon_rej | (WISE.nearby_planets != 0))) # hack !!!!!
         assert(len(Iused) == len(masks))
-        parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti)
+        parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti, output_masks=output_masks)
     else:
-        parse_write_quadrant_masks(outdir, tag, WISE, masks, int_gz, ofn, ti)
+        parse_write_quadrant_masks(outdir, tag, WISE, masks, int_gz, ofn, ti, output_masks=output_masks)
 
     if recover_warped:
-        parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti)
+        parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti, output_masks=output_masks)
 
     WISE.delete_column('wcs')
 
@@ -1289,18 +1289,19 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         rstats = rstats.to_recarray()
     fitsio.write(ofn, rstats)
 
-    md = tag + '-mask'
-    cmd = ('cd %s && tar czf %s %s && rm -R %s' %
-           (outdir, md + '.tgz', md, md))
-    print 'tgz:', cmd
-    rtn,out,err = run_command(cmd)
-    print out, err
-    if rtn:
-        print >>sys.stderr, 'ERROR: return code', rtn
-        print >>sys.stderr, 'Command:', cmd
-        print >>sys.stderr, out
-        print >>sys.stderr, err
-        ok = False
+    if output_masks:
+        md = tag + '-mask'
+        cmd = ('cd %s && tar czf %s %s && rm -R %s' %
+               (outdir, md + '.tgz', md, md))
+        print 'tgz:', cmd
+        rtn,out,err = run_command(cmd)
+        print out, err
+        if rtn:
+            print >>sys.stderr, 'ERROR: return code', rtn
+            print >>sys.stderr, 'Command:', cmd
+            print >>sys.stderr, out
+            print >>sys.stderr, err
+            ok = False
 
     return 0
 
@@ -1462,12 +1463,13 @@ def plot_region(r0,r1,d0,d1, ps, T, WISE, wcsfns, W, H, pixscale, margin=1.05,
         plot.write(fn)
         print 'Wrote', fn
 
-def parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti):
+def parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti, output_masks=True):
     # use the list of second round masks to update the WISE metadata
     # table and write out per-exposure outlier mask
     maskdir = os.path.join(outdir, tag + '-mask')
-    if not os.path.exists(maskdir):
-        os.mkdir(maskdir)
+    if output_masks:
+        if not os.path.exists(maskdir):
+            os.mkdir(maskdir)
             
     for i,mm in enumerate(masks):
         if mm is None:
@@ -1488,15 +1490,16 @@ def parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti):
         WISE.included   [ii] = 1
 
         # Write outlier masks
-        ofn = WISE.intfn[ii].replace('-int', '')
-        ofn = os.path.join(maskdir, 'unwise-mask-' + ti.coadd_id + '-'
+        if output_masks:
+            ofn = WISE.intfn[ii].replace('-int', '')
+            ofn = os.path.join(maskdir, 'unwise-mask-' + ti.coadd_id + '-'
                            + os.path.basename(ofn) + ('.gz' if not int_gz else ''))
-        w,h = WISE.imagew[ii],WISE.imageh[ii]
-        fullmask = np.zeros((h,w), mm.omask.dtype)
-        x0,x1,y0,y1 = WISE.imextent[ii,:]
-        fullmask[y0:y1+1, x0:x1+1] = mm.omask
-        fitsio.write(ofn, fullmask, clobber=True)
-        print 'Wrote mask', (i+1), 'of', len(masks), ':', ofn
+            w,h = WISE.imagew[ii],WISE.imageh[ii]
+            fullmask = np.zeros((h,w), mm.omask.dtype)
+            x0,x1,y0,y1 = WISE.imextent[ii,:]
+            fullmask[y0:y1+1, x0:x1+1] = mm.omask
+            fitsio.write(ofn, fullmask, clobber=True)
+            print 'Wrote mask', (i+1), 'of', len(masks), ':', ofn
 
 def _bounce_one_round2(*A):
     try:
@@ -2922,6 +2925,8 @@ def main():
                       help='Skip sanity checks of whether the specified combinations of options make sense.')
     parser.add_option('--hi_lo_rej', dest='hi_lo_rej', action='store_true', default=False,
                       help='Include a min/max rejection stpe during first round coaddition.')
+    parser.add_option('--no_output_masks', dest='output_masks', action='store_false', default=True,
+                      help='Turn off writing of per-exposure mask outputs.')
 
     opt,args = parser.parse_args()
 
@@ -3118,7 +3123,8 @@ def main():
                      medfilt, opt.maxmem, opt.dsky, opt.md5, opt.bgmatch,
                      opt.center, opt.minmax, opt.rchi_fraction, opt.cube1,
                      opt.epoch, opt.before, opt.after, opt.recover_warped, opt.do_rebin, opt.try_download,
-                     warp_all=opt.warp_all, reference_dir=opt.reference_dir, hi_lo_rej=opt.hi_lo_rej):
+                     warp_all=opt.warp_all, reference_dir=opt.reference_dir, hi_lo_rej=opt.hi_lo_rej,
+                     output_masks=opt.output_masks):
             return -1
         print 'Tile', T.coadd_id[tileid], 'band', band, 'took:', Time()-t0
     return 0
