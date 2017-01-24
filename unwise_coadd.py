@@ -5,7 +5,7 @@ if __name__ == '__main__':
     matplotlib.use('Agg')
 import numpy as np
 from copy import deepcopy
-import pylab as plt
+#import pylab as plt
 import os
 import sys
 import tempfile
@@ -64,12 +64,13 @@ use_zp_meta = None # should get assigned in main
 compare_moon_all = None # should get assigned in main
 
 class FirstRoundCoadd():
-    def __init__(self, coimg1, cow1, coppstd1, cowimgsq1):
+    def __init__(self, coimg1, cow1, coppstd1, cowimgsq1, con1):
         self.coimg1 = coimg1
         self.cow1 = cow1
         self.coppstd1 = coppstd1
         self.cowimgsq1 = cowimgsq1
         self.cowimg1 = coimg1*cow1
+        self.con1 = con1 # integer coverage, "unmasked"
 
 class FirstRoundImage():
     def __init__(self, quadrant=-1):
@@ -644,7 +645,7 @@ def process_round1_quadrants(WISE, cowcs, zp_lookup_obj, r1_coadd=None, delete_x
                             tinyw = 1e-16
                             rchi_fraction = 0.01 # might need to tune this
                             mm = _coadd_one_round2((wi, N, scanid, qq, r1_coadd.cow1, r1_coadd.cowimg1, r1_coadd.cowimgsq1, tinyw,
-                                                    plotfn, ps1, do_dsky, rchi_fraction))
+                                                    plotfn, ps1, do_dsky, rchi_fraction, r1_coadd.con1))
                             if mm is None:
                                 n_skipped += 1
                                 continue
@@ -1511,7 +1512,7 @@ def _bounce_one_round2(*A):
         raise
 
 def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
-                       plotfn, ps1, do_dsky, rchi_fraction)):
+                       plotfn, ps1, do_dsky, rchi_fraction, con1)):
     '''
     For multiprocessing, the function to be called for each round-2
     frame.
@@ -1574,7 +1575,7 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
 
     assert(np.all(np.isfinite(rchi)))
 
-    badpix = (np.abs(rchi) >= 5.)
+    badpix = ((np.abs(rchi) >= 5.) & (con1[coslc] > 2))
     #print 'Number of rchi-bad pixels:', np.count_nonzero(badpix)
 
     mm.nrchipix = np.count_nonzero(badpix)
@@ -2240,7 +2241,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                      (this_scan_id, this_frame_num, band)) # really should clean this up ...
             mm = _coadd_one_round2(
                 (ri, num_round1_images, scanid, rr, r1_coadd.cow1, r1_coadd.cowimg1, r1_coadd.cowimgsq1, tinyw,
-                 plotfn, ps1, do_dsky, rchi_fraction))
+                 plotfn, ps1, do_dsky, rchi_fraction, r1_coadd.con1))
             coadd.acc(mm, delmm=delmm)
             if mm is not None:
                 mm.scan_id = this_scan_id
@@ -2258,8 +2259,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
             scanid = ('scan %s frame %i band %i' %
                       (WISE.scan_id[ri], WISE.frame_num[ri], band))
             args.append((ri, N, scanid, rr, r1_coadd.cow1, r1_coadd.cowimg1, r1_coadd.cowimgsq1, tinyw,
-                         plotfn, ps1, do_dsky, rchi_fraction))
-        #masks = mp.map(_coadd_one_round2, args)
+                         plotfn, ps1, do_dsky, rchi_fraction, r1_coadd.con1))
         masks = mp2.map(_bounce_one_round2, args)
         del args
         print 'Accumulating second-round coadds...'
@@ -2575,6 +2575,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
     coimg   = np.zeros((H,W))
     coimgsq = np.zeros((H,W))
     cow     = np.zeros((H,W))
+    con1    = np.zeros((H,W))
 
     zp_lookup_obj = ZPLookUp(band, poly=True)
 
@@ -2656,6 +2657,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
         coimgsq[slc] += rr.w * good * (rr.rimg**2)
         coimg  [slc] += rr.w * good *  rr.rimg
         cow    [slc] += rr.w * good * (rr.rmask & 1)
+        con1   [slc] += good * (rr.rmask & 1)
 
         if cube1:
             cube[(z,)+slc] = rr.rimg.astype(np.float32)
@@ -2776,7 +2778,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
         plt.ylim(max(1, min(n)), max(n)*1.1)
         ps.savefig()
 
-    r1_coadd = FirstRoundCoadd(coimg, cow, coppstd, coimgsq)
+    r1_coadd = FirstRoundCoadd(coimg, cow, coppstd, coimgsq, con1)
     return rimgs, r1_coadd, rstats, cube
 
 def get_wise_frames_for_dataset(dataset, band, racen, deccen,
