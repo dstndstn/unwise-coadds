@@ -16,7 +16,7 @@ from scipy.ndimage.measurements import label
 from zp_lookup import ZPLookUp
 import random
 from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask, parse_write_quadrant_masks, RecoveryStats, pad_rebin_weighted, ReferenceImage, QuadrantWarp, reference_image_from_dir
-from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file, download_frameset_1band, sanity_check_inputs, phase_from_scanid, header_reference_keywords, get_l1b_dirs, is_nearby
+from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file, download_frameset_1band, sanity_check_inputs, phase_from_scanid, header_reference_keywords, get_l1b_dirs, is_nearby, good_scan_mask
 from hi_lo import HiLo
 
 import fitsio
@@ -923,6 +923,10 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     WISE.moon_rej = np.zeros(len(WISE), bool)
     WISE.use *= (WISE.qual_frame > 0)
     print 'Cut out qual_frame = 0;', sum(WISE.use), 'remaining'
+
+    WISE.use *= good_scan_mask(WISE)
+    print 'Cut out bad scans from bad_scans.txt; ', sum(WISE.use), 'remaining'
+
     WISE.use *= (WISE.planets == 0)
     print 'Cut out planets != 0;', sum(WISE.use), 'remaining'
     if not recover_warped:

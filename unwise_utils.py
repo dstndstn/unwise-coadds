@@ -8,6 +8,38 @@ import pprint
 from astrometry.util.starutil_numpy import degrees_between
 import bisect
 
+def good_scan_mask(frames):
+    # given an input table of frames e.g. the variable WISE in 
+    # unwise_coadd.py, make and return a row-matched boolean mask indicating
+    # which scans are bad, based on the file $UNWISE_META_DIR/bad_scans.txt
+    # the frames table must include a .scan_id column
+
+    # do not assume any particular sorting of scan_id values listed in 
+    # bad_scans.txt, or in the frames table
+    # do assume one valid scan_id value per line in bad_scans.txt
+
+    # what if bad_scans.txt is empty or non-existent ?
+
+    # what does each of True/False mean in the output ?
+    # --> True means good, False means bad
+
+    fname = os.path.join(os.environ.get('UNWISE_META_DIR'), 'bad_scans.txt')
+
+    # start with all true
+    mask = np.logical_not(np.zeros(len(frames), dtype=bool))
+    if not os.path.exists(fname):
+        return mask
+
+    f = open(fname, 'r')
+
+    # this should be fine even if the file is empty
+    for line in f:
+        bad_scan_id = line[:-1]
+        assert(len(bad_scan_id) == 6)
+        mask = np.logical_and(mask, (frames.scan_id != bad_scan_id))
+
+    return mask
+
 def get_l1b_file(basedir, scanid, frame, band, int_gz=False):
     scangrp = scanid[-2:]
     fname = os.path.join(basedir, scangrp, scanid, '%03i' % frame, 
