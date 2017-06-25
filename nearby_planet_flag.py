@@ -28,7 +28,7 @@ def _zfill3(string):
 def get_all_unique_framesets():
     # read in the full L1b frame index and return a version
     # with only the unique (scan_id, frame_num) pairs
-    fdir = '/global/cscratch1/sd/ameisner/code/unwise-coadds/etc_p9'
+    fdir = '/global/cscratch1/sd/ameisner/code/unwise-coadds/etc_p9_neo3'
     #fname = 'WISE-index-L1b.fits'
     fname1 = os.path.join(fdir, 'WISE-index-L1b_w1.fits')
     fname2 = os.path.join(fdir, 'WISE-index-L1b_w2.fits')
@@ -75,7 +75,8 @@ def get_planet_framesets():
               'WISE-l1b-metadata-3band.fits',
               'WISE-l1b-metadata-2band.fits',
               'WISE-l1b-metadata-neowiser.fits',
-              'WISE-l1b-metadata-neowiser2.fits']
+              'WISE-l1b-metadata-neowiser2.fits',
+              'WISE-l1b-metadata-neowiser3.fits']
 
     fnames.reverse()
     arr_out = None
