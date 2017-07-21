@@ -1228,6 +1228,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     hdr.add_record(dict(name='MJDMIN', value=kw_mjdmin, comment='minimum MJD among included L1b frames'))
     hdr.add_record(dict(name='MJDMAX', value=kw_mjdmax, comment='maximum MJD among included L1b frames'))
 
+    hdr.add_record(dict(name='BAND', value=band, comment='WISE band'))
+
     # "Unmasked" versions
     ofn = prefix + '-img-u.fits'
     fitsio.write(ofn, coim.astype(np.float32), header=hdr, clobber=True, extname='coadded image, outliers patched')
