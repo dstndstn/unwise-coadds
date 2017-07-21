@@ -250,9 +250,16 @@ def phase_from_scanid(scan_id):
         phase = '2band'
     elif scan_int <= 55289:
         phase = 'neo1'
-    else:
+    elif scan_int < 66418:
         phase = 'neo2'
-
+    elif scan_int == 66418:
+        scan_letter = scan_id[5]
+        if scan_letter == 'a':
+            phase = 'neo2'
+        else: 
+            phase = 'neo3'
+    else:
+        phase = 'neo3'
     return phase
 
 def header_reference_keywords(reference_dir):
@@ -278,6 +285,7 @@ def get_l1b_dirs(yml=False, verbose=False):
                   '2band' : '/project/projectdirs/cosmo/data/wise/postcryo/2band_p1bm_frm',
                   'neo1' : '/project/projectdirs/cosmo/data/wise/neowiser/p1bm_frm',
                   'neo2' : '/project/projectdirs/cosmo/staging/wise/neowiser2/neowiser/p1bm_frm',
+                  'neo3' : '/global/projecta/projectdirs/cosmo/staging/wise/neowiser/p1bm_frm',
                   'missing' : 'merge_p1bm_frm' }
     else:
         fname = os.path.join(os.environ.get('UNWISE_META_DIR'), 'l1b_dirs.yml')

@@ -305,7 +305,7 @@ def get_wise_frames(racen, deccen, band, margin=1.7):
     WISE.phase = np.zeros(len(WISE), np.uint8)
     
     for nbands,name in [(4,'4band'), (3,'3band'), (2,'2band'), (2,'neowiser'),
-                        (2, 'neowiser2'),
+                        (2, 'neowiser2'), (2, 'neowiser3'),
                         ]:
         fn = os.path.join(metadir, 'WISE-l1b-metadata-%s.fits' % name)
         print 'Reading', fn
