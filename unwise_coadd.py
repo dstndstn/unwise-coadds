@@ -16,7 +16,7 @@ from scipy.ndimage.measurements import label
 from zp_lookup import ZPLookUp
 import random
 from warp_utils import WarpMetaParameters, mask_extreme_pix, compute_warp, apply_warp, gen_warp_table, update_included_bitmask, parse_write_quadrant_masks, RecoveryStats, pad_rebin_weighted, ReferenceImage, QuadrantWarp, reference_image_from_dir
-from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file, download_frameset_1band, sanity_check_inputs, phase_from_scanid, header_reference_keywords, get_l1b_dirs, is_nearby, good_scan_mask
+from unwise_utils import tile_to_radec, int_from_scan_frame, zeropointToScale, retrieve_git_version, get_dir_for_coadd, get_epoch_breaks, get_coadd_tile_wcs, get_l1b_file, download_frameset_1band, sanity_check_inputs, phase_from_scanid, header_reference_keywords, get_l1b_dirs, is_nearby, good_scan_mask, ascending
 from hi_lo import HiLo
 
 import fitsio
@@ -84,6 +84,8 @@ class FirstRoundImage():
         self.w = None
         self.wcs = None
         self.zp = None
+        self.pa = None # for john fowler
+        self.ascending = None # for john fowler
         self.zpscale = None
         self.quadrant = quadrant
         self.included_round1 = False
@@ -110,6 +112,8 @@ class SecondRoundImage():
         self.sky = None
         self.dsky = None
         self.zp = None
+        self.pa = None # for john fowler
+        self.ascending = None # for john fowler
         self.ncopix = None
         self.npatched = None
         self.nrchipix = None
@@ -1185,6 +1189,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     WISE.sky1 = np.zeros(len(WISE), np.float32)
     WISE.sky2 = np.zeros(len(WISE), np.float32)
     WISE.zeropoint = np.zeros(len(WISE), np.float32)
+    WISE.pa = np.zeros(len(WISE), np.float32)
+    WISE.ascending   = np.zeros(len(WISE), np.uint8)
     WISE.npixoverlap = np.zeros(len(WISE), np.int32)
     WISE.npixpatched = np.zeros(len(WISE), np.int32)
     WISE.npixrchi    = np.zeros(len(WISE), np.int32)
@@ -1250,13 +1256,13 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
 
     # "Masked" versions
     ofn = prefix + '-img-m.fits'
-    fitsio.write(ofn, coimb.astype(np.float32), header=hdr, clobber=True, extname='coadded image, outliers removed')
+    fitsio.write(ofn, (coimb*(conb != 0)).astype(np.float32), header=hdr, clobber=True, extname='coadded image, outliers removed')
     print 'Wrote', ofn
     ofn = prefix + '-invvar-m.fits'
-    fitsio.write(ofn, coivb.astype(np.float32), header=hdr, clobber=True, extname='inverse variance, outliers removed')
+    fitsio.write(ofn, (coivb*(conb != 0)).astype(np.float32), header=hdr, clobber=True, extname='inverse variance, outliers removed')
     print 'Wrote', ofn
     ofn = prefix + '-std-m.fits'
-    fitsio.write(ofn, coppb.astype(np.float32), header=hdr, clobber=True, extname='sample standard deviation, outliers removed')
+    fitsio.write(ofn, (coppb*(conb != 0)).astype(np.float32), header=hdr, clobber=True, extname='sample standard deviation, outliers removed')
     print 'Wrote', ofn
     ofn = prefix + '-n-m.fits'
     fitsio.write(ofn, conb.astype(np.int16), header=hdr, clobber=True, extname='integer frame coverage, outlier pixels removed')
@@ -1486,6 +1492,8 @@ def parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti, output_m
         WISE.sky1       [ii] = mm.sky
         WISE.sky2       [ii] = mm.dsky
         WISE.zeropoint  [ii] = mm.zp
+        WISE.pa         [ii] = mm.pa
+        WISE.ascending  [ii] = mm.ascending
         WISE.npixoverlap[ii] = mm.ncopix
         WISE.npixpatched[ii] = mm.npatched
         WISE.npixrchi   [ii] = mm.nrchipix
@@ -1535,6 +1543,8 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     mm.ncopix   = rr.ncopix
     mm.sky      = rr.sky
     mm.zp       = rr.zp
+    mm.pa       = rr.pa
+    mm.ascending = rr.ascending
     mm.w        = rr.w
     mm.included = 1
 
@@ -1595,7 +1605,7 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     # Add rchi-masked pixels to the mask
     # (clear bit 2)
     rr.rmask[badpix] = (rr.rmask[badpix] & (~2))
-    mm.omask = np.zeros((rr.wcs.get_height(), rr.wcs.get_width()),
+    mm.omask = np.zeros((int(rr.wcs.get_height()), int(rr.wcs.get_width())),
                         badpixmask.dtype)
     try:
         Yo,Xo,Yi,Xi,nil = resample_with_wcs(rr.wcs, rr.cosubwcs, [], None)
@@ -1749,6 +1759,8 @@ class coaddacc():
     '''Second-round coadd accumulator.'''
     def __init__(self, H,W, do_cube=False, nims=0, bgmatch=False,
                  minmax=False):
+        H = int(H)
+        W = int(W)
         self.coimg    = np.zeros((H,W))
         self.coimgsq  = np.zeros((H,W))
         self.cow      = np.zeros((H,W))
@@ -2403,6 +2415,9 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
 
     zpscale = 1. / zeropointToScale(zp)
     print 'Zeropoint:', zp, '-> scale', zpscale
+    pa = ihdr['PA'] # for john fowler
+
+    asce = ascending(ihdr['INEVENTS'])
 
     if band == 4:
         # In W4, the WISE single-exposure images are binned down
@@ -2552,6 +2567,8 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     rr.sky = sky
     rr.zpscale = zpscale
     rr.zp = zp
+    rr.pa = pa # for john fowler
+    rr.ascending = asce
     rr.ncopix = len(Yo)
     rr.coextent = wise.coextent
     rr.cosubwcs = cosubwcs
@@ -2576,8 +2593,8 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
     '''
     Do round-1 coadd.
     '''
-    W = cowcs.get_width()
-    H = cowcs.get_height()
+    W = int(cowcs.get_width())
+    H = int(cowcs.get_height())
     coimg   = np.zeros((H,W))
     coimgsq = np.zeros((H,W))
     cow     = np.zeros((H,W))

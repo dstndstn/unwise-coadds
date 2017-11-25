@@ -409,6 +409,8 @@ def parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti, outpu
         WISE.sky1[exp_mask] = qmask.sky
         WISE.sky2[exp_mask] = qmask.dsky
         WISE.zeropoint[exp_mask] = qmask.zp
+        WISE.pa[exp_mask] = qmask.pa
+        WISE.ascending[exp_mask] = qmask.ascending
         WISE.npixoverlap[exp_mask] += qmask.ncopix
         WISE.npixpatched[exp_mask] += qmask.npatched
         WISE.npixrchi[exp_mask] += qmask.nrchipix
@@ -559,8 +561,8 @@ def reference_image_from_dir(basedir, coadd_id, band, verbose=True):
 
     dir = get_dir_for_coadd(basedir, coadd_id)
     intfn = os.path.join(dir, 'unwise-' + coadd_id + '-w' + str(band) + '-img-u.fits')
-    uncfn = intfn.replace('-img-u.fits', '-std-u.fits')
-    nfn = intfn.replace('-img-u.fits', '-n-u.fits')
+    uncfn = intfn.replace('-img-u.fits', '-std-u.fits') + '.gz'
+    nfn = intfn.replace('-img-u.fits', '-n-u.fits') + '.gz'
 
     if verbose:
         print 'Creating reference image from files: '

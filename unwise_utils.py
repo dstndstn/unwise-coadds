@@ -305,7 +305,26 @@ def is_nearby(ra, dec, racen, deccen, margin, fast=True):
     else:
         # do a binary search
         ind = np.searchsorted(dec, [deccen-margin, deccen+margin])
-        dangle = degrees_between(ra[ind[0]:ind[1]], dec[ind[0]:ind[1]], racen, deccen)
+        ind0 = (ind[0])[0]
+        ind1 = (ind[1])[0]
+        dangle = degrees_between(ra[ind0:ind1], dec[ind0:ind1], racen, deccen)
         nearby = np.zeros(len(ra),dtype=bool)
-        nearby[ind[0]:ind[1]] = (dangle <= margin)
+        nearby[ind0:ind1] = (dangle <= margin)
         return nearby
+
+def ascending(inevents):
+    # parse INEVENTS L1b header keyword to determine whether a scan is
+    # ascending or descending
+
+    # input needs to be a string !!
+    if 'ASCE' in inevents:
+        return 1
+    if 'DESC' in inevents:
+        return 0
+
+    # have not considered the case in which both ASCE and DESC are
+    # in INEVENTS -- code assumes that this situation never happens
+
+    # 2 is a dummy value for the case in which neither ASCE nor DESC
+    # is present in inevents
+    return 2
