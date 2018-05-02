@@ -28,7 +28,7 @@ def _zfill3(string):
 def get_all_unique_framesets():
     # read in the full L1b frame index and return a version
     # with only the unique (scan_id, frame_num) pairs
-    fdir = '/global/cscratch1/sd/ameisner/code/unwise-coadds/etc_p9_neo3'
+    fdir = '/global/cscratch1/sd/ameisner/code/unwise-coadds/etc_neo4'
     #fname = 'WISE-index-L1b.fits'
     fname1 = os.path.join(fdir, 'WISE-index-L1b_w1.fits')
     fname2 = os.path.join(fdir, 'WISE-index-L1b_w2.fits')
@@ -71,12 +71,15 @@ def get_planet_framesets():
     # this should be a short list (how short though?)
 
     dir = os.environ['UNWISE_META_DIR']
-    fnames = ['WISE-l1b-metadata-4band.fits',
-              'WISE-l1b-metadata-3band.fits',
-              'WISE-l1b-metadata-2band.fits',
-              'WISE-l1b-metadata-neowiser.fits',
-              'WISE-l1b-metadata-neowiser2.fits',
-              'WISE-l1b-metadata-neowiser3.fits']
+###    fnames = ['WISE-l1b-metadata-4band.fits',
+###              'WISE-l1b-metadata-3band.fits',
+###              'WISE-l1b-metadata-2band.fits',
+###              'WISE-l1b-metadata-neowiser.fits',
+###              'WISE-l1b-metadata-neowiser2.fits',
+###              'WISE-l1b-metadata-neowiser3.fits',
+###              'WISE-l1b-metadata-neowiser4.fits']
+
+    fnames = ['WISE-l1b-metadata-neowiser4.fits']
 
     fnames.reverse()
     arr_out = None
@@ -118,6 +121,7 @@ def compute_separations_nearby():
     decpad = 5 # 3.5
     nearby_frames = None
     for i in range(n_planet_sightings):
+        print ('WORKING ON ' + str(i) + ' OF ' + str(n_planet_sightings))
         # use dec binary search (search_sorted?) to figure out the
         # relatively small number of frames that could be nearby this planet
         # sighting
