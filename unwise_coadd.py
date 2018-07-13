@@ -611,7 +611,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
             failedfiles.append(intfnx)
             continue
 
-        h,w = wcs.get_height(), wcs.get_width()
+        h,w = int(wcs.get_height()), int(wcs.get_width())
         r,d = walk_wcs_boundary(wcs, step=2.*w, margin=10)
         ok,u,v = cowcs.radec2iwc(r, d)
         poly = np.array(list(reversed(list(zip(u,v)))))
@@ -1058,13 +1058,13 @@ def _bounce_one_round2(*A):
         traceback.print_exc()
         raise
 
-def _coadd_one_round2(xxx_todo_changeme):
+def _coadd_one_round2(X):
     '''
     For multiprocessing, the function to be called for each round-2
     frame.
     '''
     (ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
-                       plotfn, ps1, do_dsky, rchi_fraction) = xxx_todo_changeme
+                       plotfn, ps1, do_dsky, rchi_fraction) = X
     if rr is None:
         return None
     print('Coadd round 2, image', (ri+1), 'of', N)
@@ -1128,7 +1128,7 @@ def _coadd_one_round2(xxx_todo_changeme):
 
     # "omask" is the file we're going to write out saying which pixels
     # were rchi masked, in L1b pixel space.
-    mm.omask = np.zeros((rr.wcs.get_height(), rr.wcs.get_width()),
+    mm.omask = np.zeros((int(rr.wcs.get_height()), int(rr.wcs.get_width())),
                         badpixmask.dtype)
     try:
         Yo,Xo,Yi,Xi,nil = resample_with_wcs(rr.wcs, rr.cosubwcs, [], None)
@@ -1382,8 +1382,8 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                do_cube, medfilt, plots2=False, table=True, do_dsky=False,
                checkmd5=False, bgmatch=False, minmax=False, rchi_fraction=0.01, do_cube1=False):
     L = 3
-    W = cowcs.get_width()
-    H = cowcs.get_height()
+    W = int(cowcs.get_width())
+    H = int(cowcs.get_height())
     # For W4, single-image ww is ~ 1e-10
     tinyw = 1e-16
 
@@ -2054,13 +2054,13 @@ def estimate_sky_2(img, lo=None, hi=None, plo=1, phi=70, bins1=30,
     return mx
 
 
-def _coadd_one_round1(xxx_todo_changeme1):
+def _coadd_one_round1(X):
     '''
     For multiprocessing, the function called to do round 1 on a single
     input frame.
     '''
     (i, N, wise, table, L, ps, band, cowcs, medfilt,
-                       do_check_md5) = xxx_todo_changeme1
+                       do_check_md5) = X
     t00 = Time()
     print()
     print('Coadd round 1, image', (i+1), 'of', N)
@@ -2303,8 +2303,8 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
     '''
     Do round-1 coadd.
     '''
-    W = cowcs.get_width()
-    H = cowcs.get_height()
+    W = int(cowcs.get_width())
+    H = int(cowcs.get_height())
     coimg   = np.zeros((H,W))
     coimgsq = np.zeros((H,W))
     cow     = np.zeros((H,W))
