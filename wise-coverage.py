@@ -51,12 +51,20 @@ def image_way():
 
     #ps = PlotSequence('cov', format='%04i')
     ps = PlotSequence('cov2', format='%04i')
-    for nbands in [4,3,2]:
-        #bb = [1,2,3,4][:nbands]
+
+    metadatadir = '/project/projectdirs/cosmo/data/wise/merge/merge_p1bm_frm/'
+    for phase,metafn in enumerate([
+            'WISE-l1b-metadata-4band.fits',
+            'WISE-l1b-metadata-3band.fits',
+            'WISE-l1b-metadata-2band.fits',
+            'WISE-l1b-metadata-neowiser.fits',
+            'WISE-l1b-metadata-neowiser2.fits',
+            ]):
+        fn = os.path.join(metadatadir, metafn)
         bb = [1]
         for band in bb:
 
-            ofn = 'cov-n%i-b%i.fits' % (nbands, band)
+            ofn = 'cov-phase%i-b%i.fits' % (phase, band)
             if os.path.exists(ofn):
                 print 'Exists:', ofn
                 count = fitsio.read(ofn)
@@ -70,7 +78,6 @@ def image_way():
                 ps.savefig()
                 continue
 
-            fn = 'wise-frames/WISE-l1b-metadata-%iband.fits' % nbands
             cols = [('w%i'%band)+c for c in
                     ['crval1','crval2','crpix1','crpix2',
                      'cd1_1','cd1_2','cd2_1','cd2_2', 'naxis1','naxis2',]]
@@ -228,6 +235,10 @@ def healpix_way():
                 
     
 if __name__ == '__main__':
+
+    image_way()
+    sys.exit(0)
+
 
     T = None
 
