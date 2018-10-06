@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-mjds = np.arange(55200, 57000, 0.1)
+mjds = np.arange(55200, 58105, 0.1)
 
 print np.min(mjds),np.max(mjds)
 
