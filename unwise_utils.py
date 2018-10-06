@@ -258,8 +258,16 @@ def phase_from_scanid(scan_id):
             phase = 'neo2'
         else: 
             phase = 'neo3'
-    else:
+    elif scan_int < 77590:
         phase = 'neo3'
+    elif scan_int == 77590:
+        scan_letter = scan_id[5]
+        if scan_letter == 'a':
+            phase = 'neo3'
+        else:
+            phase = 'neo4'
+    else:
+        phase = 'neo4'
     return phase
 
 def header_reference_keywords(reference_dir):
@@ -286,6 +294,7 @@ def get_l1b_dirs(yml=False, verbose=False):
                   'neo1' : '/project/projectdirs/cosmo/data/wise/neowiser/p1bm_frm',
                   'neo2' : '/project/projectdirs/cosmo/staging/wise/neowiser2/neowiser/p1bm_frm',
                   'neo3' : '/global/projecta/projectdirs/cosmo/staging/wise/neowiser/p1bm_frm',
+                  'neo4' : '/project/projectdirs/cosmo/staging/wise/neowiser4/neowiser/p1bm_frm', 
                   'missing' : 'merge_p1bm_frm' }
     else:
         fname = os.path.join(os.environ.get('UNWISE_META_DIR'), 'l1b_dirs.yml')
