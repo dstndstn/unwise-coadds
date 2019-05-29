@@ -48,7 +48,18 @@ median_f = flat_median_f
 # Location of WISE Level 1b inputs
 wisedir = 'wise-frames'
 
-wisedirs = [wisedir, 'neowiser-frames', 'merge_p1bm_frm']
+wisedirs = [wisedir, 'merge_p1bm_frm', 'neowiser-frames', 'neowiser2-frames', 'neowiser3-frames', 'neowiser4-frames']
+
+'''
+at NERSC:
+ln -s /global/project/projectdirs/cosmo/work/wise/etc/etc_neo4 wise-frames
+ln -s /global/project/projectdirs/cosmo/data/wise/merge/merge_p1bm_frm/ .
+ln -s /global/project/projectdirs/cosmo/data/wise/neowiser/p1bm_frm/ neowiser-frames
+ln -s /global/project/projectdirs/cosmo/staging/wise/neowiser2/neowiser/p1bm_frm/ neowiser2-frames
+ln -s /global/projecta/projectdirs/cosmo/staging/wise/neowiser3/neowiser/p1bm_frm/ neowiser3-frames
+ln -s /global/project/projectdirs/cosmo/staging/wise/neowiser4/neowiser/p1bm_frm/ neowiser4-frames
+'''
+
 
 mask_gz = True
 unc_gz = True
@@ -223,8 +234,17 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
     Returns WISE frames touching the given RA,Dec box plus margin.
     '''
     # Read WISE frame metadata
-    WISE = fits_table(os.path.join(wisedir, 'WISE-index-L1b.fits'))
-    print('Read', len(WISE), 'WISE L1b frames')
+
+    #WISE = fits_table(os.path.join(wisedir, 'WISE-index-L1b.fits'))
+    #print('Read', len(WISE), 'WISE L1b frames')
+    WISE = []
+    for band in [1,2,3,4]:
+        fn = os.path.join(wisedir, 'WISE-index-L1b_w%i.fits' % band)
+        print('Reading', fn)
+        W = fits_table(fn)
+        WISE.append(W)
+    WISE = merge_tables(WISE)
+    print('Total of', len(WISE), 'frames')
     WISE.row = np.arange(len(WISE))
 
     # Coarse cut on RA,Dec box.
@@ -247,6 +267,8 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
     
     for nbands,name in [(4,'4band'), (3,'3band'), (2,'2band'), (2,'neowiser'),
                         (2, 'neowiser2'),
+                        (2, 'neowiser3'),
+                        (2, 'neowiser4'),
                         ]:
         fn = os.path.join(wisedir, 'WISE-l1b-metadata-%s.fits' % name)
         print('Reading', fn)
@@ -372,7 +394,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
               ps, wishlist, outdir, mp1, mp2, do_cube, plots2,
               frame0, nframes, nframes_random, force, medfilt, maxmem, do_dsky, checkmd5,
               bgmatch, center, minmax, rchi_fraction, do_cube1, epoch,
-              before, after, force_outdir=False, just_image=False, version=None):
+              before, after, allow_download,
+              force_outdir=False, just_image=False, version=None):
     '''
     Create coadd for one tile & band.
     '''
@@ -570,7 +593,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         for wdir in wisedirs + [None]:
             download = False
             if wdir is None:
-                download = True
+                download = allow_download
                 wdir = 'merge_p1bm_frm'
 
             intfn = get_l1b_file(wdir, wise.scan_id, wise.frame_num, band)
@@ -2719,6 +2742,9 @@ def main():
     parser.add_option('--before', type=float, help='Keep only input frames before the given MJD')
     parser.add_option('--after',  type=float, help='Keep only input frames after the given MJD')
 
+    parser.add_option('--no-download', dest='download', default=True, action='store_false',
+                      help='Do not download data from IRSA, assume it is already on disk')
+
     opt,args = parser.parse_args()
 
     if opt.threads:
@@ -3037,7 +3063,7 @@ def main():
                      opt.force,
                      medfilt, opt.maxmem, opt.dsky, opt.md5, opt.bgmatch,
                      opt.center, opt.minmax, opt.rchi_fraction, opt.cube1,
-                     opt.epoch, opt.before, opt.after):
+                     opt.epoch, opt.before, opt.after, opt.download):
             return -1
         print('Tile', T.coadd_id[tileid], 'band', band, 'took:', Time()-t0)
     return 0
