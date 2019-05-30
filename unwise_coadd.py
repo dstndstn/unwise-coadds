@@ -2600,10 +2600,13 @@ def todo(T, W, H, pixscale, outdirs, r0,r1,d0,d1, ps, dataset, bands=[1,2,3,4],
 
 
 def get_wise_frames_for_dataset(dataset, r0,r1,d0,d1,
-                                randomize=False, cache=True, dirnm=None):
+                                randomize=False, cache=True, dirnm=None, cachefn=None):
     WISE = None
     if cache:
-        fn = '%s-frames.fits' % dataset
+        if cachefn is None:
+            fn = '%s-frames.fits' % dataset
+        else:
+            fn = cachefn
         if dirnm is not None:
             fn = os.path.join(dirnm, fn)
         if os.path.exists(fn):
@@ -2744,6 +2747,8 @@ def main():
 
     parser.add_option('--no-download', dest='download', default=True, action='store_false',
                       help='Do not download data from IRSA, assume it is already on disk')
+
+    parser.add_option('--cache-frames', help='For custom --ra,--dec coadds, cache the overlapping frames in this file.')
 
     opt,args = parser.parse_args()
 
@@ -2999,10 +3004,15 @@ def main():
 
     # cache the file DATASET-frames.fits ?
     cache = True
+    cachefn = None
     if radec:
-        cache = False
+        if opt.cache_frames:
+            cachefn = opt.cache_frames
+            cache = True
+        else:
+            cache = False
 
-    WISE = get_wise_frames_for_dataset(dataset, r0,r1,d0,d1, cache=cache)
+    WISE = get_wise_frames_for_dataset(dataset, r0,r1,d0,d1, cache=cache, cachefn=cachefn)
 
     if opt.allmd5:
         Ibad = check_md5s(WISE)
