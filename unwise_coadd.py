@@ -298,49 +298,6 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
     WISE.cut(np.lexsort((WISE.band, WISE.frame_num, WISE.scan_id)))
     return WISE
 
-def check_one_md5(wise):
-    intfn = get_l1b_file(wisedir, wise.scan_id, wise.frame_num, wise.band)
-    uncfn = intfn.replace('-int-', '-unc-')
-    if unc_gz:
-        uncfn = uncfn + '.gz'
-    maskfn = intfn.replace('-int-', '-msk-')
-    if mask_gz:
-        maskfn = maskfn + '.gz'
-    instr = ''
-    ok = True
-    for fn in [intfn,uncfn,maskfn]:
-        if not os.path.exists(fn):
-            print('%s: DOES NOT EXIST' % fn, file=sys.stderr)
-            ok = False
-            continue
-        mdfn = fn + '.md5'
-        if not os.path.exists(mdfn):
-            print('%s: DOES NOT EXIST' % mdfn, file=sys.stderr)
-            ok = False
-            continue
-        md5 = read_file(mdfn)
-        instr += '%s  %s\n' % (md5, fn)
-    if len(instr):
-        cmd = "echo '%s' | md5sum -c" % instr
-        rtn,out,err = run_command(cmd)
-        print(out, err)
-        if rtn:
-            print('ERROR: return code', rtn, file=sys.stderr)
-            print(out, file=sys.stderr)
-            print(err, file=sys.stderr)
-            ok = False
-    return ok
-
-def check_md5s(WISE):
-    from astrometry.util.run_command import run_command
-    from astrometry.util.file import read_file
-    ibad = []
-    for i,wise in enumerate(WISE):
-        print('Checking md5', i+1, 'of', len(WISE))
-        if not check_one_md5(wise):
-            ibad.append(i)
-    return np.array(ibad)
-
 def get_dir_for_coadd(outdir, coadd_id):
     # base/RRR/RRRRsDDD/unwise-*
     return os.path.join(outdir, coadd_id[:3], coadd_id)
@@ -361,7 +318,7 @@ def get_epoch_breaks(mjds):
 
 def one_coadd(ti, band, W, H, pixscale, WISE,
               ps, wishlist, outdir, mp1, mp2, do_cube, plots2,
-              frame0, nframes, nframes_random, force, medfilt, maxmem, do_dsky, checkmd5,
+              frame0, nframes, nframes_random, force, medfilt, maxmem, do_dsky,
               bgmatch, center, minmax, rchi_fraction, do_cube1, epoch,
               before, after, allow_download,
               force_outdir=False, just_image=False, version=None):
@@ -711,7 +668,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
          comin,comax,cominb,comaxb
          )= coadd_wise(ti.coadd_id, cowcs, WISE[WISE.use], ps, band, mp1, mp2, do_cube,
                        medfilt, plots2=plots2, do_dsky=do_dsky,
-                       checkmd5=checkmd5, bgmatch=bgmatch, minmax=minmax,
+                       bgmatch=bgmatch, minmax=minmax,
                        rchi_fraction=rchi_fraction, do_cube1=do_cube1)
     except:
         print('coadd_wise failed:')
@@ -1372,7 +1329,7 @@ def binimg(img, b):
 
 def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                do_cube, medfilt, plots2=False, table=True, do_dsky=False,
-               checkmd5=False, bgmatch=False, minmax=False, rchi_fraction=0.01, do_cube1=False):
+               bgmatch=False, minmax=False, rchi_fraction=0.01, do_cube1=False):
     L = 3
     W = int(cowcs.get_width())
     H = int(cowcs.get_height())
@@ -1381,7 +1338,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
 
     # Round-1 coadd:
     (rimgs, coimg1, cow1, coppstd1, cowimgsq1, cube1)= _coadd_wise_round1(
-        cowcs, WISE, ps, band, table, L, tinyw, mp1, medfilt, checkmd5,
+        cowcs, WISE, ps, band, table, L, tinyw, mp1, medfilt,
         bgmatch, do_cube1)
     cowimg1 = coimg1 * cow1
     assert(len(rimgs) == len(WISE))
@@ -2051,8 +2008,7 @@ def _coadd_one_round1(X):
     For multiprocessing, the function called to do round 1 on a single
     input frame.
     '''
-    (i, N, wise, table, L, ps, band, cowcs, medfilt,
-                       do_check_md5) = X
+    (i, N, wise, table, L, ps, band, cowcs, medfilt) = X
     t00 = Time()
     print()
     print('Coadd round 1, image', (i+1), 'of', N)
@@ -2075,10 +2031,6 @@ def _coadd_one_round1(X):
     cox0,cox1,coy0,coy1 = wise.coextent
     coW = int(1 + cox1 - cox0)
     coH = int(1 + coy1 - coy0)
-
-    if do_check_md5:
-        if not check_one_md5(wise):
-            raise RuntimeError('MD5 check failed for ' + intfn + ' or unc/msk')
 
     # We read the full images for sky-estimation purposes -- really necessary?
     fullimg,ihdr = fitsio.read(intfn, header=True)
@@ -2290,7 +2242,7 @@ def _coadd_one_round1(X):
 
 
 def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
-                       checkmd5, bgmatch, cube1):
+                       bgmatch, cube1):
                        
     '''
     Do round-1 coadd.
@@ -2303,8 +2255,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
 
     args = []
     for wi,wise in enumerate(WISE):
-        args.append((wi, len(WISE), wise, table, L, ps, band, cowcs, medfilt,
-                     checkmd5))
+        args.append((wi, len(WISE), wise, table, L, ps, band, cowcs, medfilt))
     rimgs = mp.map(_coadd_one_round1, args)
     del args
 
@@ -2592,12 +2543,6 @@ def main():
     parser.add_option('--minmax', action='store_true',
                       help='Record the minimum and maximum values encountered during coadd?')
 
-    parser.add_option('--md5', dest='md5', action='store_true', default=False,
-                      help='Check md5sums on all input files?')
-
-    parser.add_option('--all-md5', dest='allmd5', action='store_true', default=False,
-                      help='Check all md5sums and exit')
-
     parser.add_option('--ra', dest='ra', type=float, default=None,
                       help='Build coadd at given RA center')
     parser.add_option('--dec', dest='dec', type=float, default=None,
@@ -2646,7 +2591,7 @@ def main():
 
     radec = opt.ra is not None and opt.dec is not None
 
-    if len(args) == 0 and arr is None and not (opt.allmd5 or radec or opt.tile or opt.preprocess):
+    if len(args) == 0 and arr is None and not (radec or opt.tile or opt.preprocess):
         print('No tile(s) specified')
         parser.print_help()
         sys.exit(-1)
@@ -2722,6 +2667,9 @@ def main():
             return -1
         T.cut(I)
 
+    # In the older days, we ran multiple tiles
+    assert(len(T) == 1)
+        
     if opt.name:
         if len(T) > 1:
             print('--name specified, but more than one tile to run; filenames would clash.')
@@ -2749,15 +2697,6 @@ def main():
             cache = False
 
     WISE = get_wise_frames_for_dataset(dataset, r0,r1,d0,d1, cache=cache, cachefn=cachefn)
-
-    if opt.allmd5:
-        Ibad = check_md5s(WISE)
-        print('Found', len(Ibad), 'bad MD5s')
-        for i in Ibad:
-            intfn = get_l1b_file(wisedir, WISE.scan_id[i], WISE.frame_num[i], WISE.band[i])
-            print(('(wget -r -N -nH -np -nv --cut-dirs=4 -A "*w%i*" "http://irsa.ipac.caltech.edu/ibe/data/wise/merge/merge_p1bm_frm/%s")' %
-                   (WISE.band[i], os.path.dirname(intfn).replace(wisedir + '/', ''))))
-        sys.exit(0)
 
     if not os.path.exists(opt.outdir) and not opt.wishlist:
         print('Creating output directory', opt.outdir)
