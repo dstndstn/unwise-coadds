@@ -151,43 +151,6 @@ def get_wcs_radec_bounds(wcs):
     d0,d1 = dd.min(), dd.max()
     return r0,r1,d0,d1
 
-def get_atlas_tiles(r0,r1,d0,d1, W=2048, H=2048, pixscale=2.75):
-    '''
-    Select Atlas Image tiles touching a desired RA,Dec box.
-
-    pixscale in arcsec/pixel
-    '''
-    # Read Atlas Image table
-    fn = os.path.join(wisedir, 'wise_allsky_4band_p3as_cdd.fits')
-    print('Reading', fn)
-    T = fits_table(fn, columns=['coadd_id', 'ra', 'dec'])
-    T.row = np.arange(len(T))
-    print('Read', len(T), 'Atlas tiles')
-
-    margin = (max(W,H) / 2.) * (pixscale / 3600.)
-
-    T.cut(in_radec_box(T.ra, T.dec, r0,r1,d0,d1, margin))
-    print('Cut to', len(T), 'Atlas tiles near RA,Dec box')
-
-    T.coadd_id = np.array([c.replace('_ab41','') for c in T.coadd_id])
-
-    # Some of them don't *actually* touch our RA,Dec box...
-    print('Checking tile RA,Dec bounds...')
-    keep = []
-    for i in range(len(T)):
-        wcs = get_coadd_tile_wcs(T.ra[i], T.dec[i], W, H, pixscale)
-        R0,R1,D0,D1 = get_wcs_radec_bounds(wcs)
-        # FIXME RA wrap
-        if R1 < r0 or R0 > r1 or D1 < d0 or D0 > d1:
-            print('Coadd tile', T.coadd_id[i], 'is outside RA,Dec box')
-            continue
-        keep.append(i)
-    T.cut(np.array(keep))
-    print('Cut to', len(T), 'tiles')
-    # sort
-    T.cut(np.argsort(T.coadd_id))
-    return T
-
 def in_radec_box(ra,dec, r0,r1,d0,d1, margin):
     assert(r0 <= r1)
     assert(d0 <= d1)
@@ -2594,9 +2557,6 @@ def main():
     parser.add_option('--cube1', dest='cube1', action='store_true',
                       default=False, help='Save & write out image cube for round 1')
 
-    parser.add_option('--dataset', dest='dataset', default='sequels',
-                      help='Dataset (region of sky) to coadd')
-
     parser.add_option('--frame0', dest='frame0', default=0, type=int,
                       help='Only use a subset of the frames: starting with frame0')
     parser.add_option('--nframes', dest='nframes', default=0, type=int,
@@ -2705,161 +2665,36 @@ def main():
     if opt.height:
         H = opt.height
 
-    dataset = opt.dataset
-
     randomize = False
     pmargin = 1.05
     pallsky = False
     plotargs = {}
 
     if radec:
-        dataset = ''
-    if opt.tile is not None:
-        dataset = ''
+        dataset = ('custom-%04i%s%03i' %
+                   (int(opt.ra*10.), 'p' if opt.dec >= 0. else 'm', int(np.abs(opt.dec)*10.)))
+        print('Setting custom dataset', dataset)
+        cosd = np.cos(np.deg2rad(opt.dec))
+        r0 = opt.ra - (opt.pixscale * W/2.)/3600. / cosd
+        r1 = opt.ra + (opt.pixscale * W/2.)/3600. / cosd
+        d0 = opt.dec - (opt.pixscale * H/2.)/3600.
+        d1 = opt.dec + (opt.pixscale * H/2.)/3600.
 
-    if dataset == 'sequels':
-        # SEQUELS
-        r0,r1 = 120.0, 210.0
-        d0,d1 =  45.0,  60.0
-    elif dataset == 'gc':
-        # Galactic center
-        r0,r1 = 262.0, 270.0
-        d0,d1 = -32.0, -26.0
-    elif dataset == 'pupa':
-        # Puppis A supernova remnant 1253m425
-        r0,r1 = 125.1, 125.5
-        d0,d1 = -42.6, -42.4
-    elif dataset == 'swire':
-        # Spitzer SWIRE
-        r0,r1 = 157.0, 166.0
-        #d0,d1 =  55.0,  60.0
-        d0,d1 =  56.0,  59.0
-    elif dataset == 'cosmos':
-        r0,r1 = 149.61, 150.62
-        d0,d1 =   1.66,   2.74
-    elif dataset == 'w3':
-        # CFHT LS W3
-        r0,r1 = 210.593,  219.132
-        d0,d1 =  51.1822,  54.1822
-    elif dataset.startswith('s82'):
-        # SDSS Stripe 82
-        r0,r1 = 0., 360.
-        d0,d1 = -1.5, 1.5
-        pallsky = True
-        rmap = dict(s82a=(0.,90.), s82b=(90.,180.), s82c=(180.,270.), s82d=(270.,360.))
-        r0,r1 = rmap.get(dataset, (r0,r1))
-    elif dataset == 's82':
-        # SDSS Stripe 82
-        r0,r1 = 0., 360.
-        d0,d1 = -1.5, 1.5
-        pallsky = True
-    elif dataset == 'm31':
-        r0,r1 =  9.0, 12.5
-        d0,d1 = 40.5, 42.5
-    elif dataset in ['npole', 'npole-rand']:
-        # North ecliptic pole
-        # (270.0, 66.56)
-        r0,r1 = 265.0, 275.0
-        d0,d1 =  64.6,  68.6
-        if dataset == 'npole-rand':
-            randomize = True
-        pmargin = 1.5
-    elif dataset in ['sdss', 'ngc', 'sgca', 'sgcb']:
-        if dataset == 'sdss':
-            # SDSS -- whole footprint
-            r0,r1 =   0., 360.
-            d0,d1 = -30.,  90.
-        # SDSS -- approximate NGC/SGC bounding boxes
-        elif dataset == 'ngc':
-            r0,r1 = 130., 230.
-            d0,d1 =   5.,  45.
-        elif dataset == 'sgca':
-            r0,r1 = 330., 360.
-            d0,d1 =  -5.,  20.
-        elif dataset == 'sgcb':
-            r0,r1 =   0.,  20.
-            d0,d1 =  -5.,  20.
-        
-        pallsky = True
-        plotargs.update(label_tiles=False, draw_outline=False)
-        plotargs.update(ra=180., dec=0.)
-        plotargs.update(grid_spacing=[30,30,30,30])
-
-    elif dataset == 'allsky':
-        r0,r1 =   0., 360.
-        d0,d1 = -90.,  90.
-        pallsky = True
-        plotargs.update(label_tiles=False, draw_outline=False)
-        plotargs.update(ra=180., dec=0.)
-        plotargs.update(grid_spacing=[30,30,30,30])
-
-    elif dataset in ['allnorth', 'allsouth']:
-        global arrayblock
-        arrayblock = 10000
-        
-        r0,r1 =  0., 360.
-        if dataset == 'allnorth':
-            d0,d1 =  0.,  90.
-        else:
-            d0,d1 = -90.,  0.
-        pallsky = True
-        plotargs.update(label_tiles=False, draw_outline=False)
-        plotargs.update(ra=180., dec=0.)
-        plotargs.update(grid_spacing=[30,30,30,30])
-
-
-    elif dataset == 'examples':
-        pass
-
-    elif dataset == 'deepqso':
-        r0,r1 =  36.0, 42.0
-        d0,d1 =  -1.3, 1.3
-        pmargin = 1.5
-        plotargs.update(grid_spacing=(1,1,2,2))
-
-    elif dataset == 'three':
-        fn = '%s-atlas.fits' % dataset
-        if not os.path.exists(fn):
-            T = fits_table('allsky-atlas.fits')
-            l,b = radectoecliptic(T.ra, T.dec)
-            I = np.flatnonzero((l > 220) * (l < 230) * (b > 0) * (b < 75))
-            T.cut(I)
-            print('Cut to', len(T), 'tiles in L,B slice')
-            T.writeto(fn)
-        else:
-            T = fits_table(fn)
-        r0 = T.ra.min()
-        r1 = T.ra.max()
-        d0 = T.dec.min()
-        d1 = T.dec.max()
+    elif opt.tile is not None:
+        # parse it
+        if len(opt.tile) != 8:
+            print('--tile expects string like RRRR[pm]DDD')
+            sys.exit(-1)
+        ra,dec = tile_to_radec(opt.tile)
+        print('Tile RA,Dec', ra,dec)
+        dataset = opt.tile
+        r0 = ra  - 0.001
+        r1 = ra  + 0.001
+        d0 = dec - 0.001
+        d1 = dec + 0.001
 
     else:
-        if radec:
-            dataset = ('custom-%04i%s%03i' % (int(opt.ra*10.),
-                                              'p' if opt.dec >= 0. else 'm',
-                                              int(np.abs(opt.dec)*10.)))
-            print('Setting custom dataset', dataset)
-            cosd = np.cos(np.deg2rad(opt.dec))
-            r0 = opt.ra - (opt.pixscale * W/2.)/3600. / cosd
-            r1 = opt.ra + (opt.pixscale * W/2.)/3600. / cosd
-            d0 = opt.dec - (opt.pixscale * H/2.)/3600.
-            d1 = opt.dec + (opt.pixscale * H/2.)/3600.
-
-        elif opt.tile is not None:
-            # parse it
-            if len(opt.tile) != 8:
-                print('--tile expects string like RRRR[pm]DDD')
-                sys.exit(-1)
-            ra,dec = tile_to_radec(opt.tile)
-            print('Tile RA,Dec', ra,dec)
-            dataset = opt.tile
-            r0 = ra  - 0.001
-            r1 = ra  + 0.001
-            d0 = dec - 0.001
-            d1 = dec + 0.001
-
-        else:
-            assert(False)
+        assert(False)
 
     tiles = []
     
@@ -2875,20 +2710,17 @@ def main():
             else:
                 tiles.append(arrayblock)
     else:
-        fn = '%s-atlas.fits' % dataset
-        print('Looking for file', fn)
-        if os.path.exists(fn):
-            print('Reading', fn)
-            T = fits_table(fn)
-        else:
-            T = get_atlas_tiles(r0,r1,d0,d1, W,H, opt.pixscale)
-            T.writeto(fn)
-            print('Wrote', fn)
-
-        if opt.tile and len(args) == 0 and len(opt.band):
-            tiles.extend([b * arrayblock for b in opt.band])
-        elif not len(args):
-            tiles.append(arr)
+        # Read Atlas Image table to find tile id
+        fn = os.path.join(wisedir, 'wise_allsky_4band_p3as_cdd.fits')
+        print('Reading', fn)
+        T = fits_table(fn, columns=['coadd_id', 'ra', 'dec'])
+        print('Read', len(T), 'Atlas tiles')
+        T.coadd_id = np.array([c.replace('_ab41','') for c in T.coadd_id])
+        I = np.flatnonzero(T.coadd_id == np.array(opt.tile).astype(T.coadd_id.dtype))
+        if len(I) != 1:
+            print('Found', len(I), '(not 1) tiles matching desired', opt.tile)
+            return -1
+        T.cut(I)
 
     if opt.name:
         if len(T) > 1:
