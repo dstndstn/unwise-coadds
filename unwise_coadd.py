@@ -18,11 +18,11 @@ import fitsio
 
 from astrometry.util.file import trymakedirs
 from astrometry.util.fits import fits_table, merge_tables
-from astrometry.util.miscutils import estimate_mode
-from astrometry.util.util import Tan, flat_median_f
+from astrometry.util.miscutils import estimate_mode, polygons_intersect, clip_polygon, patch_image
+from astrometry.util.util import Tan, Sip, flat_median_f
 from astrometry.util.resample import resample_with_wcs, OverlapError
 from astrometry.util.run_command import run_command
-#from astrometry.util.starutil_numpy import *
+from astrometry.util.starutil_numpy import degrees_between
 from astrometry.util.ttime import Time, MemMeas
 from astrometry.libkd.spherematch import match_radec
 
@@ -2479,8 +2479,6 @@ def main():
 
     parser.add_option('--outdir', '-o', dest='outdir', default='unwise-coadds',
                       help='Output directory: default %default')
-    parser.add_option('--outdir2', dest='outdir2',
-                      help='Additional output directory')
 
     parser.add_option('--size', dest='size', default=2048, type=int,
                       help='Set output image size in pixels; default %default')
@@ -2669,17 +2667,26 @@ def main():
     else:
         ps = None
 
+    if opt.band is None:
+        bands = [1,2]
+    else:
+        bands = list(opt.band)
+
     kwargs = vars(opt)
     print('kwargs:', kwargs)
     # rename
-    for fr,to in [('dsky', 'do_sky'),
+    for fr,to in [('dsky', 'do_dsky'),
                   ('cube', 'do_cube'),
                   ('cube1', 'do_cube1'),
                   ('download', 'allow_download'),
                   ]:
         kwargs.update({ to: kwargs.pop(fr) })
-    
-    for band in opt.band:
+    for key in ['threads', 'threads1', 'plots', 'pdf', 'plotprefix',
+                'size', 'width', 'height', 'ra', 'dec', 'band', 'name',
+                'tile', 'preprocess', 'cache_frames']:
+        kwargs.pop(key)
+
+    for band in bands:
         print('Doing coadd tile', tile.coadd_id, 'band', band)
         t0 = Time()
 
