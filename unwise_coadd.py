@@ -26,16 +26,16 @@ if __name__ == '__main__':
         sys.path.append(os.getcwd())
 
 from astrometry.util.file import trymakedirs
-from astrometry.util.fits import *
-from astrometry.util.multiproc import *
-from astrometry.util.plotutils import *
-from astrometry.util.miscutils import *
-from astrometry.util.util import *
-from astrometry.util.resample import *
-from astrometry.util.run_command import *
-from astrometry.util.starutil_numpy import *
-from astrometry.util.ttime import *
-from astrometry.libkd.spherematch import *
+from astrometry.util.fits import fits_table, merge_tables
+from astrometry.util.multiproc import multiproc
+from astrometry.util.plotutils import PlotSequence
+from astrometry.util.miscutils import estimate_mode
+from astrometry.util.util import Tan
+from astrometry.util.resample import resample_with_wcs, OverlapError
+from astrometry.util.run_command import run_command
+#from astrometry.util.starutil_numpy import *
+from astrometry.util.ttime import Time, MemMeas
+from astrometry.libkd.spherematch import match_radec
 
 import logging
 lvl = logging.INFO
