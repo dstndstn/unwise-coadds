@@ -16,19 +16,8 @@ from scipy.ndimage.measurements import label, center_of_mass
 
 import fitsio
 
-arrayblock = 20000
-
-if __name__ == '__main__':
-    arr = os.environ.get('PBS_ARRAYID')
-    d = os.environ.get('PBS_O_WORKDIR')
-    if arr is not None and d is not None:
-        os.chdir(d)
-        sys.path.append(os.getcwd())
-
 from astrometry.util.file import trymakedirs
 from astrometry.util.fits import fits_table, merge_tables
-from astrometry.util.multiproc import multiproc
-from astrometry.util.plotutils import PlotSequence
 from astrometry.util.miscutils import estimate_mode
 from astrometry.util.util import Tan
 from astrometry.util.resample import resample_with_wcs, OverlapError
@@ -2571,7 +2560,10 @@ def main():
     parser.add_option('--cache-frames', help='For custom --ra,--dec coadds, cache the overlapping frames in this file.')
 
     opt,args = parser.parse_args()
-
+    if len(args):
+        print('Extra arguments supplied:', args)
+        return -1
+    
     if opt.threads:
         mp2 = multiproc(opt.threads)
     else:
@@ -2581,21 +2573,14 @@ def main():
     else:
         mp1 = multiproc(opt.threads1)
 
-    batch = False
-    arr = os.environ.get('PBS_ARRAYID')
-    if arr is not None:
-        arr = int(arr)
-        batch = True
-
     radec = opt.ra is not None and opt.dec is not None
 
-    if len(args) == 0 and arr is None and not (radec or opt.tile or opt.preprocess):
-        print('No tile(s) specified')
+    if not radec or opt.tile:
+        print('Must specify --ra,--dec or --tile')
         parser.print_help()
-        sys.exit(-1)
+        return -1
 
     print('unwise_coadd.py starting: args:', sys.argv)
-    print('PBS_ARRAYID:', arr)
 
     print('opt:', opt)
     print(dir(opt))
@@ -2622,12 +2607,11 @@ def main():
         r1 = opt.ra + (opt.pixscale * W/2.)/3600. / cosd
         d0 = opt.dec - (opt.pixscale * H/2.)/3600.
         d1 = opt.dec + (opt.pixscale * H/2.)/3600.
-
-    elif opt.tile is not None:
-        # parse it
+    else:
+        # parse opt.tile
         if len(opt.tile) != 8:
             print('--tile expects string like RRRR[pm]DDD')
-            sys.exit(-1)
+            return -1
         ra,dec = tile_to_radec(opt.tile)
         print('Tile RA,Dec', ra,dec)
         dataset = opt.tile
@@ -2636,22 +2620,11 @@ def main():
         d0 = dec - 0.001
         d1 = dec + 0.001
 
-    else:
-        assert(False)
-
-    tiles = []
-    
-
     if radec:
         T = fits_table()
         T.coadd_id = np.array([dataset])
         T.ra = np.array([opt.ra])
         T.dec = np.array([opt.dec])
-        if len(args) == 0:
-            if len(opt.band):
-                tiles.extend([b * arrayblock for b in opt.band])
-            else:
-                tiles.append(arrayblock)
     else:
         # Read Atlas Image table to find tile id
         fn = os.path.join(wisedir, 'wise_allsky_4band_p3as_cdd.fits')
@@ -2667,21 +2640,19 @@ def main():
 
     # In the older days, we ran multiple tiles
     assert(len(T) == 1)
+    tile = T[0]
 
     if opt.name:
-        if len(T) > 1:
-            print('--name specified, but more than one tile to run; filenames would clash.')
-            sys.exit(-1)
+        tile.coadd_id = opt.name
 
-        T.coadd_id = np.array([opt.name])
-
-    if opt.plotprefix is None:
-        opt.plotprefix = dataset
-    ps = PlotSequence(opt.plotprefix, format='%03i')
-    if opt.pdf:
-        ps.suffixes = ['png','pdf']
-
-    if not opt.plots:
+    if opt.plots:
+        from astrometry.util.plotutils import PlotSequence
+        if opt.plotprefix is None:
+            opt.plotprefix = dataset
+        ps = PlotSequence(opt.plotprefix, format='%03i')
+        if opt.pdf:
+            ps.suffixes = ['png','pdf']
+    else:
         ps = None
 
     # cache the file DATASET-frames.fits ?
@@ -2702,29 +2673,10 @@ def main():
 
     if opt.preprocess:
         print('Preprocessing done')
-        sys.exit(0)
+        return 0
 
-    for a in args:
-        # parse "qsub -t" format: n,n1-n2,n3
-        for term in a.split(','):
-            if '-' in term:
-                aa = term.split('-')
-                if len(aa) != 2:
-                    print('With arg containing a dash, expect two parts')
-                    print(aa)
-                    sys.exit(-1)
-                start = int(aa[0])
-                end = int(aa[1])
-                for i in range(start, end+1):
-                    tiles.append(i)
-            else:
-                tiles.append(int(term))
-
-    for tileid in tiles:
-        band   = tileid / arrayblock
-        tileid = tileid % arrayblock
-        assert(tileid < len(T))
-        print('Doing coadd tile', T.coadd_id[tileid], 'band', band)
+    for band in opt.band:
+        print('Doing coadd tile', tile.coadd_id, 'band', band)
         t0 = Time()
 
         medfilt = opt.medfilt
@@ -2734,15 +2686,15 @@ def main():
             else:
                 medfilt = 0
 
-        if one_coadd(T[tileid], band, W, H, opt.pixscale, WISE, ps,
+        if one_coadd(tile, band, W, H, opt.pixscale, WISE, ps,
                      opt.wishlist, opt.outdir, mp1, mp2,
                      opt.cube, opt.plots2, opt.frame0, opt.nframes, opt.nframes_random,
                      opt.force,
-                     medfilt, opt.maxmem, opt.dsky, opt.md5, opt.bgmatch,
+                     medfilt, opt.maxmem, opt.dsky, opt.bgmatch,
                      opt.center, opt.minmax, opt.rchi_fraction, opt.cube1,
                      opt.epoch, opt.before, opt.after, opt.download):
             return -1
-        print('Tile', T.coadd_id[tileid], 'band', band, 'took:', Time()-t0)
+        print('Tile', tile.coadd_id, 'band', band, 'took:', Time()-t0)
     return 0
 
 if __name__ == '__main__':
