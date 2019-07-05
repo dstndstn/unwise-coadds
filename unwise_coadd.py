@@ -29,6 +29,7 @@ from astrometry.libkd.spherematch import match_radec
 import logging
 lvl = logging.INFO
 logging.basicConfig(level=lvl, format='%(message)s', stream=sys.stdout)
+logger = logging.getLogger('unwise_coadd')
 def info(*args):
     msg = ' '.join(map(str, args))
     logger.info(msg)
@@ -338,6 +339,12 @@ def one_coadd(ti, band, W, H, frames,
     debug('RA,Dec', ti.ra, ti.dec)
     debug('Band', band)
 
+    from astrometry.util.multiproc import multiproc
+    if mp1 is None:
+        mp1 = multiproc()
+    if mp2 is None:
+        mp2 = multiproc()
+
     wisepixscale = 2.75
 
     if version is None:
@@ -364,7 +371,7 @@ def one_coadd(ti, band, W, H, frames,
     r,d = walk_wcs_boundary(cowcs, step=W, margin=10)
     ok,u,v = cowcs.radec2iwc(r,d)
     copoly = np.array(list(reversed(list(zip(u,v)))))
-    print('Coadd IWC polygon:', copoly)
+    #print('Coadd IWC polygon:', copoly)
 
     margin = (1.1 # safety margin
               * (np.sqrt(2.) / 2.) # diagonal
@@ -588,16 +595,16 @@ def one_coadd(ti, band, W, H, frames,
             ps.savefig()
 
         if not intersects:
-            print('Image does not intersect target')
+            debug('Image does not intersect target')
             frames.use[wi] = False
             continue
 
         cpoly = np.array(clip_polygon(copoly, poly))
         if len(cpoly) == 0:
-            print('No overlap between coadd and image polygons')
-            print('copoly:', copoly)
-            print('poly:', poly)
-            print('cpoly:', cpoly)
+            debug('No overlap between coadd and image polygons')
+            debug('copoly:', copoly)
+            debug('poly:', poly)
+            debug('cpoly:', cpoly)
             frames.use[wi] = False
             continue
 
@@ -641,7 +648,7 @@ def one_coadd(ti, band, W, H, frames,
         # the peak memory use.
         e = frames.coextent[wi,:]
         pixinrange += (1+e[1]-e[0]) * (1+e[3]-e[2])
-        print('Total pixels in coadd space:', pixinrange)
+        debug('Total pixels in coadd space:', pixinrange)
 
     if len(failedfiles):
         print(len(failedfiles), 'failed:')
@@ -1020,7 +1027,7 @@ def _coadd_one_round2(X):
                        plotfn, ps1, do_dsky, rchi_fraction) = X
     if rr is None:
         return None
-    print('Coadd round 2, image', (ri+1), 'of', N)
+    debug('Coadd round 2, image', (ri+1), 'of', N)
     t00 = Time()
     mm = Duck()
     mm.npatched = rr.npatched
@@ -1056,7 +1063,7 @@ def _coadd_one_round2(X):
     # median difference in the overlapping area.
     if do_dsky:
         dsky = median_f((rr.rimg[mask] - subco[mask]).astype(np.float32))
-        print('Sky difference:', dsky)
+        debug('Sky difference:', dsky)
     else:
         dsky = 0.
 
@@ -1065,7 +1072,7 @@ def _coadd_one_round2(X):
     assert(np.all(np.isfinite(rchi)))
 
     badpix = (np.abs(rchi) >= 5.)
-    #print 'Number of rchi-bad pixels:', np.count_nonzero(badpix)
+    #debug 'Number of rchi-bad pixels:', np.count_nonzero(badpix)
 
     mm.nrchipix = np.count_nonzero(badpix)
 
@@ -1088,11 +1095,12 @@ def _coadd_one_round2(X):
         mm.omask[Yo,Xo] = badpixmask[Yi,Xi]
     except OverlapError:
         import traceback
-        print('WARNING: Caught OverlapError resampling rchi mask')
-        print('rr WCS', rr.wcs)
-        print('shape', mm.omask.shape)
-        print('cosubwcs:', rr.cosubwcs)
-        traceback.print_exc(None, sys.stdout)
+        debug('WARNING: Caught OverlapError resampling rchi mask')
+        debug('rr WCS', rr.wcs)
+        debug('shape', mm.omask.shape)
+        debug('cosubwcs:', rr.cosubwcs)
+        if logger.isEnabledFor(logging.DEBUG):
+            traceback.print_exc(None, sys.stdout)
 
     if mm.nrchipix > mm.ncopix * rchi_fraction:
         print(('WARNING: dropping exposure %s: n rchi pixels %i / %i' %
@@ -1230,7 +1238,7 @@ def _coadd_one_round2(X):
         plt.suptitle('%s %s' % (scanid, inc))
         plt.savefig(plotfn)
 
-    print(Time() - t00)
+    debug(Time() - t00)
     return mm
 
 class coaddacc():
@@ -1298,9 +1306,9 @@ class coaddacc():
             self.cubei += 1
         if self.minmax:
 
-            print('mm.coslc:', mm.coslc)
-            print('mm.con:', np.unique(mm.con), mm.con.dtype)
-            print('mm.rmask2:', np.unique(mm.rmask2), mm.rmask2.dtype)
+            debug('mm.coslc:', mm.coslc)
+            debug('mm.con:', np.unique(mm.con), mm.con.dtype)
+            debug('mm.rmask2:', np.unique(mm.rmask2), mm.rmask2.dtype)
 
             self.comin[mm.coslc][mm.con] = np.minimum(self.comin[mm.coslc][mm.con],
                                                       mm.coimg[mm.con] / mm.w)
@@ -1311,10 +1319,10 @@ class coaddacc():
             self.comaxb[mm.coslc][mm.rmask2] = np.maximum(self.comaxb[mm.coslc][mm.rmask2],
                                                           mm.coimg[mm.rmask2] / mm.w)
 
-            print('comin',  self.comin.min(),  self.comin.max())
-            print('comax',  self.comax.min(),  self.comax.max())
-            print('cominb', self.cominb.min(), self.cominb.max())
-            print('comaxb', self.comaxb.min(), self.comaxb.max())
+            debug('comin',  self.comin.min(),  self.comin.max())
+            debug('comax',  self.comax.min(),  self.comax.max())
+            debug('cominb', self.cominb.min(), self.cominb.max())
+            debug('comaxb', self.comaxb.min(), self.comaxb.max())
 
         if delmm:
             del mm.coimgsq
@@ -1595,9 +1603,9 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     # memory usage (so we don't need to keep all "rr" inputs and
     # "masks" outputs in memory at once).
     t0 = Time()
-    print('Before garbage collection:', Time()-t0)
+    debug('Before garbage collection:', Time()-t0)
     gc.collect()
-    print('After garbage collection:', Time()-t0)
+    debug('After garbage collection:', Time()-t0)
     ps1 = (ps is not None)
     delmm = (ps is None)
     if not mp2.pool:
@@ -1638,14 +1646,14 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                          minmax=minmax)
         for mm in masks:
             coadd.acc(mm, delmm=delmm)
-        print(Time()-t0)
+        debug(Time()-t0)
 
     coadd.finish()
 
     t0 = Time()
-    print('Before garbage collection:', Time()-t0)
+    debug('Before garbage collection:', Time()-t0)
     gc.collect()
-    print('After garbage collection:', Time()-t0)
+    debug('After garbage collection:', Time()-t0)
 
     if ps:
         ngood = 0
@@ -2013,8 +2021,7 @@ def _coadd_one_round1(X):
     '''
     (i, N, wise, table, L, ps, band, cowcs, medfilt) = X
     t00 = Time()
-    print()
-    print('Coadd round 1, image', (i+1), 'of', N)
+    debug('Coadd round 1, image', (i+1), 'of', N)
     intfn = wise.intfn
     uncfn = intfn.replace('-int-', '-unc-')
     if unc_gz:
@@ -2022,9 +2029,9 @@ def _coadd_one_round1(X):
     maskfn = intfn.replace('-int-', '-msk-')
     if mask_gz:
         maskfn = maskfn + '.gz'
-    print('intfn', intfn)
-    print('uncfn', uncfn)
-    print('maskfn', maskfn)
+    debug('intfn', intfn)
+    debug('uncfn', uncfn)
+    debug('maskfn', maskfn)
 
     wcs = wise.wcs
     x0,x1,y0,y1 = wise.imextent
@@ -2045,7 +2052,7 @@ def _coadd_one_round1(X):
 
     zp = ihdr['MAGZP']
     zpscale = 1. / zeropointToScale(zp)
-    print('Zeropoint:', zp, '-> scale', zpscale)
+    debug('Zeropoint:', zp, '-> scale', zpscale)
 
     if band == 4:
         # In W4, the WISE single-exposure images are binned down
@@ -2071,7 +2078,7 @@ def _coadd_one_round1(X):
     goodmask[np.logical_not(np.isfinite(unc))] = False
 
     sig1 = median_f(unc[goodmask])
-    print('sig1:', sig1)
+    debug('sig1:', sig1)
     del mask
     del unc
 
@@ -2079,7 +2086,7 @@ def _coadd_one_round1(X):
     rr = Duck()
     # Patch masked pixels so we can interpolate
     rr.npatched = np.count_nonzero(np.logical_not(goodmask))
-    print('Pixels to patch:', rr.npatched)
+    debug('Pixels to patch:', rr.npatched)
     # Many of the post-cryo frames have ~160,000 masked!
     if rr.npatched > 200000:
         print('WARNING: too many pixels to patch:', rr.npatched)
@@ -2104,7 +2111,7 @@ def _coadd_one_round1(X):
         ok = median_smooth(fullimg, np.logical_not(fullok), int(medfilt), mf)
         fullimg -= mf
         img = fullimg[slc]
-        print('Median filtering with box size', medfilt, 'took', Time()-tmf0)
+        debug('Median filtering with box size', medfilt, 'took', Time()-tmf0)
         if ps:
             # save for later...
             rr.medfilt = mf * zpscale
@@ -2155,9 +2162,9 @@ def _coadd_one_round1(X):
     else:
         sky = estimate_mode(fim)
 
-    print('Estimated sky:', sky)
-    print('Image median:', np.median(fullimg[fullok]))
-    print('Image median w/ noise:', np.median(fim))
+    debug('Estimated sky:', sky)
+    debug('Image median:', np.median(fullimg[fullok]))
+    debug('Image median w/ noise:', np.median(fim))
 
     del fim
     del fullunc
@@ -2176,23 +2183,23 @@ def _coadd_one_round1(X):
         Yo,Xo,Yi,Xi,rims = resample_with_wcs(cosubwcs, wcs, [img], L,
                                              table=table)
     except OverlapError:
-        print('No overlap; skipping')
+        debug('No overlap; skipping')
         return None
     rim = rims[0]
     assert(np.all(np.isfinite(rim)))
-    print('Pixels in range:', len(Yo))
+    debug('Pixels in range:', len(Yo))
 
     if ps:
         # save for later...
         rr.img = img
         
         if medfilt:
-            print('Median filter: rr.medfilt range', rr.medfilt.min(), rr.medfilt.max())
-            print('Sky:', sky*zpscale)
+            debug('Median filter: rr.medfilt range', rr.medfilt.min(), rr.medfilt.max())
+            debug('Sky:', sky*zpscale)
             med = median_f(rr.medfilt.astype(np.float32).ravel())
             rr.rmedfilt = np.zeros((coH,coW), img.dtype)
             rr.rmedfilt[Yo,Xo] = (rr.medfilt[Yi, Xi].astype(img.dtype) - med)
-            print('rr.rmedfilt range', rr.rmedfilt.min(), rr.rmedfilt.max())
+            debug('rr.rmedfilt range', rr.rmedfilt.min(), rr.rmedfilt.max())
 
     # Scalar!
     rr.w = (1./sig1**2)
@@ -2219,9 +2226,9 @@ def _coadd_one_round1(X):
                    vmin=-2.*sig1, vmax=3.*sig1, cmap='gray')
 
         mm = median_f(rr.medfilt.astype(np.float32))
-        print('Median medfilt:', end=' ') 
+        debug('Median medfilt:', end=' ') 
         #mm = sky * zpscale
-        print('Sky*zpscale:', sky*zpscale)
+        debug('Sky*zpscale:', sky*zpscale)
         
         origimg = rr.img + rr.medfilt - mm
 
@@ -2240,7 +2247,7 @@ def _coadd_one_round1(X):
         plt.suptitle('%s %i%s' % (wise.scan_id, wise.frame_num, tag))
         ps.savefig()
 
-    print(Time() - t00)
+    debug(Time() - t00)
     return rr
 
 
@@ -2282,7 +2289,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
             if len(I) > 0:
                 bg = median_f(((coimg[slc].flat[I] / cow[slc].flat[I]) - 
                                rr.rimg.flat[I]).astype(np.float32))
-                print('Matched bg:', bg)
+                debug('Matched bg:', bg)
                 rr.rimg[(rr.rmask & 1) > 0] += bg
                 rr.bgmatch = bg
                 
@@ -2308,7 +2315,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
         #     plt.title('%s %i' % (WISE.scan_id[wi], WISE.frame_num[wi]))
         #     ps.savefig()
 
-    print(Time()-t0)
+    debug(Time()-t0)
 
     coimg /= np.maximum(cow, tinyw)
     # Per-pixel std
