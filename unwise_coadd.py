@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 
 import matplotlib
-from functools import reduce
 if __name__ == '__main__':
     matplotlib.use('Agg')
 import numpy as np
@@ -11,6 +10,7 @@ import sys
 import tempfile
 import datetime
 import gc
+from functools import reduce
 from scipy.ndimage.morphology import binary_dilation
 from scipy.ndimage.measurements import label, center_of_mass
 
@@ -48,16 +48,18 @@ median_f = flat_median_f
 # Location of WISE Level 1b inputs
 wisedir = 'wise-frames'
 
-wisedirs = [wisedir, 'merge_p1bm_frm', 'neowiser-frames', 'neowiser2-frames', 'neowiser3-frames', 'neowiser4-frames']
+wisedirs = [wisedir, 'merge_p1bm_frm', 'neowiser-frames', 'neowiser2-frames',
+            'neowiser3-frames', 'neowiser4-frames', 'neowiser5-frames']
 
 '''
 at NERSC:
-ln -s /global/project/projectdirs/cosmo/work/wise/etc/etc_neo4 wise-frames
+ln -s /global/project/projectdirs/cosmo/work/wise/etc/etc_neo5 wise-frames
 ln -s /global/project/projectdirs/cosmo/data/wise/merge/merge_p1bm_frm/ .
 ln -s /global/project/projectdirs/cosmo/data/wise/neowiser/p1bm_frm/ neowiser-frames
 ln -s /global/project/projectdirs/cosmo/staging/wise/neowiser2/neowiser/p1bm_frm/ neowiser2-frames
 ln -s /global/projecta/projectdirs/cosmo/staging/wise/neowiser3/neowiser/p1bm_frm/ neowiser3-frames
 ln -s /global/project/projectdirs/cosmo/staging/wise/neowiser4/neowiser/p1bm_frm/ neowiser4-frames
+ln -s /global/project/projectdirs/cosmo/staging/wise/neowiser5/neowiser/p1bm_frm/ neowiser5-frames
 '''
 
 
