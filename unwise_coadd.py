@@ -266,11 +266,16 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
 
     # 4-band, 3-band, or 2-band phase
     WISE.phase = np.zeros(len(WISE), np.uint8)
-    
-    for nbands,name in [(4,'4band'), (3,'3band'), (2,'2band'), (2,'neowiser'),
+
+    # The metadata files to read:
+    for nbands,name in [(4,'4band'),
+                        (3,'3band'),
+                        (2,'2band'),
+                        (2,'neowiser'),
                         (2, 'neowiser2'),
                         (2, 'neowiser3'),
                         (2, 'neowiser4'),
+                        (2, 'neowiser5'),
                         ]:
         fn = os.path.join(wisedir, 'WISE-l1b-metadata-%s.fits' % name)
         print('Reading', fn)
