@@ -25,7 +25,7 @@ if __name__ == '__main__':
         os.chdir(d)
         sys.path.append(os.getcwd())
 
-from astrometry.util.file import *
+from astrometry.util.file import trymakedirs
 from astrometry.util.fits import *
 from astrometry.util.multiproc import *
 from astrometry.util.plotutils import *
@@ -341,9 +341,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
 
     if not force_outdir:
         outdir = get_dir_for_coadd(outdir, ti.coadd_id)
-        if not os.path.exists(outdir):
-            print('mkdir', outdir)
-            os.makedirs(outdir)
+        trymakedirs(outdir)
     tag = 'unwise-%s-w%i' % (ti.coadd_id, band)
     prefix = os.path.join(outdir, tag)
     ofn = prefix + '-img-m.fits'
@@ -2669,7 +2667,7 @@ def main():
 
     # In the older days, we ran multiple tiles
     assert(len(T) == 1)
-        
+
     if opt.name:
         if len(T) > 1:
             print('--name specified, but more than one tile to run; filenames would clash.')
@@ -2700,13 +2698,7 @@ def main():
 
     if not os.path.exists(opt.outdir) and not opt.wishlist:
         print('Creating output directory', opt.outdir)
-        try:
-            os.makedirs(opt.outdir)
-        except:
-            # if we just lost the race condition, fine
-            if not os.path.exists(opt.outdir):
-                print('os.makedirs failed, and', opt.outdir, 'does not exist')
-                raise
+        trymakedirs(opt.outdir)
 
     if opt.preprocess:
         print('Preprocessing done')
