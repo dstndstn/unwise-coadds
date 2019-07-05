@@ -2602,58 +2602,41 @@ def main():
         dataset = ('custom-%04i%s%03i' %
                    (int(opt.ra*10.), 'p' if opt.dec >= 0. else 'm', int(np.abs(opt.dec)*10.)))
         print('Setting custom dataset', dataset)
-        cosd = np.cos(np.deg2rad(opt.dec))
-        r0 = opt.ra - (opt.pixscale * W/2.)/3600. / cosd
-        r1 = opt.ra + (opt.pixscale * W/2.)/3600. / cosd
-        d0 = opt.dec - (opt.pixscale * H/2.)/3600.
-        d1 = opt.dec + (opt.pixscale * H/2.)/3600.
+        # fake tiles table
+        tiles = fits_table()
+        tiles.coadd_id = np.array([dataset])
+        tiles.ra = np.array([opt.ra])
+        tiles.dec = np.array([opt.dec])
     else:
         # parse opt.tile
         if len(opt.tile) != 8:
             print('--tile expects string like RRRR[pm]DDD')
             return -1
-        ra,dec = tile_to_radec(opt.tile)
-        print('Tile RA,Dec', ra,dec)
-        dataset = opt.tile
-        r0 = ra  - 0.001
-        r1 = ra  + 0.001
-        d0 = dec - 0.001
-        d1 = dec + 0.001
-
-    if radec:
-        T = fits_table()
-        T.coadd_id = np.array([dataset])
-        T.ra = np.array([opt.ra])
-        T.dec = np.array([opt.dec])
-    else:
         # Read Atlas Image table to find tile id
         fn = os.path.join(wisedir, 'wise_allsky_4band_p3as_cdd.fits')
         print('Reading', fn)
-        T = fits_table(fn, columns=['coadd_id', 'ra', 'dec'])
-        print('Read', len(T), 'Atlas tiles')
-        T.coadd_id = np.array([c.replace('_ab41','') for c in T.coadd_id])
-        I = np.flatnonzero(T.coadd_id == np.array(opt.tile).astype(T.coadd_id.dtype))
+        tiles = fits_table(fn, columns=['coadd_id', 'ra', 'dec'])
+        print('Read', len(tiles), 'Atlas tiles')
+        tiles.coadd_id = np.array([c.replace('_ab41','') for c in tiles.coadd_id])
+        I = np.flatnonzero(tiles.coadd_id == np.array(opt.tile).astype(tiles.coadd_id.dtype))
         if len(I) != 1:
             print('Found', len(I), '(not 1) tiles matching desired', opt.tile)
             return -1
-        T.cut(I)
+        tiles.cut(I)
+        dataset = opt.tile
 
-    # In the older days, we ran multiple tiles
+    # In the olden days, we ran multiple tiles
     assert(len(T) == 1)
     tile = T[0]
 
+    cosd = np.cos(np.deg2rad(tile.dec))
+    r0 = tile.ra - (opt.pixscale * W/2.)/3600. / cosd
+    r1 = tile.ra + (opt.pixscale * W/2.)/3600. / cosd
+    d0 = tile.dec - (opt.pixscale * H/2.)/3600.
+    d1 = tile.dec + (opt.pixscale * H/2.)/3600.
+
     if opt.name:
         tile.coadd_id = opt.name
-
-    if opt.plots:
-        from astrometry.util.plotutils import PlotSequence
-        if opt.plotprefix is None:
-            opt.plotprefix = dataset
-        ps = PlotSequence(opt.plotprefix, format='%03i')
-        if opt.pdf:
-            ps.suffixes = ['png','pdf']
-    else:
-        ps = None
 
     # cache the file DATASET-frames.fits ?
     cache = True
@@ -2674,6 +2657,16 @@ def main():
     if opt.preprocess:
         print('Preprocessing done')
         return 0
+
+    if opt.plots:
+        from astrometry.util.plotutils import PlotSequence
+        if opt.plotprefix is None:
+            opt.plotprefix = dataset
+        ps = PlotSequence(opt.plotprefix, format='%03i')
+        if opt.pdf:
+            ps.suffixes = ['png','pdf']
+    else:
+        ps = None
 
     for band in opt.band:
         print('Doing coadd tile', tile.coadd_id, 'band', band)
