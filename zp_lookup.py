@@ -7,8 +7,8 @@ import scipy.special as ss
 def create_zp_interpolator(band, phase):
 
     # phase should NOT be '4band'
-    # should be one of '3band', '2band', 'neowiser', 'neowiser2', 'neowiser3', 'neowiser4'
-    assert (phase == '3band') or (phase == '2band') or (phase == 'neowiser') or (phase == 'neowiser2') or (phase == 'neowiser3') or (phase == 'neowiser4')
+    # should be one of '3band', '2band', 'neowiser', 'neowiser2', 'neowiser3', 'neowiser4', 'neowiser5'
+    assert (phase == '3band') or (phase == '2band') or (phase == 'neowiser') or (phase == 'neowiser2') or (phase == 'neowiser3') or (phase == 'neowiser4') or (phase == 'neowiser5')
 
     # construct relevant file name
     fdir = os.environ['UNWISE_META_DIR']
@@ -52,8 +52,10 @@ def get_phase_mjd(mjd):
          return 'neowiser2'
     elif (mjd <= 57735.5000532063):
          return 'neowiser3'
-    else:
+    elif (mjd <= 58100.2976637800):
          return 'neowiser4'
+    else:
+         return 'neowiser5'
 
 class ZPMetaParameters:
     def __init__(self, phase):
@@ -62,25 +64,29 @@ class ZPMetaParameters:
                       'neowiser' : 3,
                       'neowiser2' : 4,
                       'neowiser3' : 5,
-                      'neowiser4' : 6}
+                      'neowiser4' : 6,
+                      'neowiser5' : 7 }
         mjd_cen_dict = {'3band' : 55441,
                         '2band' : 55531,
                         'neowiser' : 56822,
                         'neowiser2' : 57187,
                         'neowiser3' : 57552,
-                        'neowiser4' : 57918}
+                        'neowiser4' : 57918,
+                        'neowiser5' : 58282 }
         zp_mjd_min_dict = {'3band' : 55414.9410170000,
                            '2band' : 55469.2786560000,
                            'neowiser' : 56640.2772121900,
                            'neowiser2' : 57004.8109894100,
                            'neowiser3' : 57369.9769432600,
-                           'neowiser4' : 57736.0000532063 }
+                           'neowiser4' : 57736.0000532063,
+                           'neowiser5' : 58103.7999558900 }
         zp_mjd_max_dict = {'3band' : 55467.9410170000,
                            '2band' : 55593.1195440000,
                            'neowiser' : 57004.0435914400,
                            'neowiser2' : 57368.8109894100,
                            'neowiser3' : 57734.9769432600,
-                           'neowiser4' : 58099.8988816363 }
+                           'neowiser4' : 58099.8988816363,
+                           'neowiser5' : 58460.7999558900 }
         self.exten = exten_dict[phase]
         self.mjd_cen = mjd_cen_dict[phase]
         # the nominal MJD of earliest per-day zero point tabulated
@@ -227,6 +233,8 @@ class ZPLookUp:
                              PiecewisePolynomialInterpolator(self.band, 'neowiser3'))
         self.zp_neowiser4 = (create_zp_interpolator(self.band, 'neowiser4') if not self.poly else 
                              PiecewisePolynomialInterpolator(self.band, 'neowiser4'))
+        self.zp_neowiser5 = (create_zp_interpolator(self.band, 'neowiser5') if not self.poly else 
+                             PiecewisePolynomialInterpolator(self.band, 'neowiser5'))
 
     def zp_interpolator_phase(self, phase):
         if (phase == '3band'):
@@ -239,8 +247,10 @@ class ZPLookUp:
             return self.zp_neowiser2
         elif (phase == 'neowiser3'):
             return self.zp_neowiser3
-        else:
+        elif (phase == 'neowiser4'):
             return self.zp_neowiser4
+        else:
+            return self.zp_neowiser5
 
     def get_zp(self, mjd):
         # if MJD is during 4band phase, then just return the constant
