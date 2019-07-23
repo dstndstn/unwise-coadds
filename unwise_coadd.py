@@ -854,7 +854,7 @@ def one_coadd(ti, band, W, H, frames,
             print(err, file=sys.stderr)
             ok = False
 
-    return 0
+    return rtn
 
 def plot_region(r0,r1,d0,d1, ps, T, WISE, wcsfns, W, H, pixscale, margin=1.05,
                 allsky=False, grid_ra_range=None, grid_dec_range=None,
@@ -2576,6 +2576,8 @@ def main():
 
     parser.add_option('--cache-frames', help='For custom --ra,--dec coadds, cache the overlapping frames in this file.')
 
+    parser.add_option('--period', type=float, help='Build a series of coadds separated by this period, in days.')
+
     opt,args = parser.parse_args()
     if len(args):
         print('Extra arguments supplied:', args)
@@ -2704,6 +2706,72 @@ def main():
                 'tile', 'preprocess', 'cache_frames']:
         kwargs.pop(key)
 
+    if opt.period:
+        # Switch to the mode of building short-cadence coadds.
+        if not opt.before:
+            opt.before = max(WISE.mjd)
+        if not opt.after:
+            opt.after = min(WISE.mjd)
+        epochs = np.arange(opt.after, opt.before, opt.period)
+
+        # if not opt.cache_frames:
+        #     f,fn = tempfile.mkstemp()
+        #     os.close(f)
+        #     opt.cache_frames = fn
+        #     WISE.writeto(fn)
+            
+        todo = []
+        keep = []
+        nframes_w1 = []
+        nframes_w2 = []
+
+        kwargs.update(write_masks=False)
+        
+        epnum = 0
+        for i,epoch in enumerate(epochs):
+            epdir = os.path.join(outdir, 'ep%04i' % epnum)
+            trymakedirs(epdir)
+            kw = kwargs.copy()
+            kw.update(outdir=epdir)
+
+            I, = np.nonzero((WISE.mjd >= epoch) *
+                            (WISE.mjd < epoch+opt.period))
+            I = I[np.array([WISE.band[ii] in bands for ii in I])]
+            if len(I) == 0:
+                print('No coverage for period', epoch, 'to', epoch+opt.period)
+                continue
+            keep.append(i)
+            nframes_w1.append(np.sum(WISE.band[I] == 1))
+            nframes_w2.append(np.sum(WISE.band[I] == 2))
+            epnum += 1
+
+            for band in bands:
+                todo.append(((tile, band, W, H, WISE[I]), kw))
+
+        keep = np.array(keep)
+        epochs = epochs[keep]
+
+        rtnvals = mp2.map(bounce_one_epoch, todo)
+
+        rtnvals = np.array(rtnvals)
+        
+        # measure coverage of central pixel in each epoch??
+
+        summary = fits_table()
+        summary.epochnum = np.arange(len(rtnvals))
+        summary.start = epochs
+        summary.finish = epochs + opt.period
+        ## always the same??
+        summary.nframes_w1 = np.array(nframes_w1)
+        summary.nframes_w2 = np.array(nframes_w2)
+
+        summary.cut(rtnvals == 0)
+
+        summary.writeto(os.path.join(opt.outdir, 'summary.fits'))
+                
+        sys.exit(0)
+
+        
     for band in bands:
         print('Doing coadd tile', tile.coadd_id, 'band', band)
         t0 = Time()
@@ -2721,6 +2789,10 @@ def main():
             return -1
         print('Tile', tile.coadd_id, 'band', band, 'took:', Time()-t0)
     return 0
+
+def bounce_one_epoch(X):
+    args,kwargs = X
+    return one_coadd(*args, **kwargs)
 
 if __name__ == '__main__':
     sys.exit(main())
