@@ -383,7 +383,14 @@ def one_coadd(ti, band, W, H, frames,
     # cut
     frames = frames[frames.band == band]
     frames.cut(degrees_between(ti.ra, ti.dec, frames.ra, frames.dec) < margin)
-    print('Found', len(frames), 'WISE frames in range and in band W%i' % band)
+    debug('Found', len(frames), 'WISE frames in range and in band W%i' % band)
+
+    if before is not None:
+        frames.cut(frames.mjd < before)
+        debug('Cut to', len(frames), 'frames before MJD', before)
+    if after is not None:
+        frames.cut(frames.mjd > after)
+        debug('Cut to', len(frames), 'frames after MJD', after)
 
     # Cut on IWC box
     ok,u,v = cowcs.radec2iwc(frames.ra, frames.dec)
@@ -393,7 +400,7 @@ def one_coadd(ti, band, W, H, frames,
     margin = np.sqrt(2.) * (1016./2.) * (wisepixscale/3600.) * 1.01 # safety
     frames.cut((u + margin >= u0) * (u - margin <= u1) *
              (v + margin >= v0) * (v - margin <= v1))
-    print('cut to', len(frames), 'in RA,Dec box')
+    debug('cut to', len(frames), 'in RA,Dec box')
 
     # Use a subset of frames?
     if epoch is not None:
@@ -403,7 +410,7 @@ def one_coadd(ti, band, W, H, frames,
             frames = frames[frames.mjd >= ebreaks[epoch - 1]]
         if epoch < len(ebreaks):
             frames = frames[frames.mjd <  ebreaks[epoch]]
-        print('Cut to', len(frames), 'within epoch')
+        debug('Cut to', len(frames), 'within epoch')
 
     if bgmatch or center:
         # reorder by dist from center
@@ -464,13 +471,6 @@ def one_coadd(ti, band, W, H, frames,
             del moonstdevs
             del okmoon
 
-    if before is not None:
-        frames.cut(frames.mjd < before)
-        print('Cut to', len(frames), 'frames before MJD', before)
-    if after is not None:
-        frames.cut(frames.mjd > after)
-        print('Cut to', len(frames), 'frames after MJD', after)
-            
     if frame0 or nframes or nframes_random:
         i0 = frame0
         if nframes:
@@ -479,11 +479,15 @@ def one_coadd(ti, band, W, H, frames,
             frames = frames[frame0 + np.random.permutation(len(frames)-frame0)[:nframes_random]]
         else:
             frames = frames[frame0:]
-        print('Cut to', len(frames), 'frames starting from index', frame0)
+        debug('Cut to', len(frames), 'frames starting from index', frame0)
         
     debug('Frames to coadd:')
     for i,w in enumerate(frames):
         debug('  ', i, w.scan_id, '%4i' % w.frame_num, 'MJD', w.mjd)
+
+    if len(frames) == 0:
+        info('No frames overlap position x time')
+        return -1
 
     if wishlist:
         for wise in frames:
@@ -666,7 +670,7 @@ def one_coadd(ti, band, W, H, frames,
 
     # convert from object array to string array; '' rather than '0'
     frames.intfn = np.array([{0:''}.get(s,s) for s in frames.intfn])
-    print('Cut to', sum(frames.use), 'frames intersecting target')
+    debug('Cut to', sum(frames.use), 'frames intersecting target')
 
     t1 = Time()
     debug('Up to coadd_wise:', t1 - t0)
@@ -688,7 +692,7 @@ def one_coadd(ti, band, W, H, frames,
         print('time up to failure:')
         t2 = Time()
         print(t2 - t1)
-        return
+        return -1
     t2 = Time()
     debug('coadd_wise:', t2-t1)
 
@@ -725,34 +729,34 @@ def one_coadd(ti, band, W, H, frames,
     # "Unmasked" versions
     ofn = prefix + '-img-u.fits'
     fitsio.write(ofn, coim.astype(np.float32), header=hdr, clobber=True)
-    print('Wrote', ofn)
+    debug('Wrote', ofn)
 
     if just_image:
         return 0
 
     ofn = prefix + '-invvar-u.fits'
     fitsio.write(ofn, coiv.astype(np.float32), header=hdr, clobber=True)
-    print('Wrote', ofn)
+    debug('Wrote', ofn)
     ofn = prefix + '-std-u.fits'
     fitsio.write(ofn, copp.astype(np.float32), header=hdr, clobber=True)
-    print('Wrote', ofn)
+    debug('Wrote', ofn)
     ofn = prefix + '-n-u.fits'
     fitsio.write(ofn, con.astype(np.int16), header=hdr, clobber=True)
-    print('Wrote', ofn)
+    debug('Wrote', ofn)
 
     # "Masked" versions
     ofn = prefix + '-img-m.fits'
     fitsio.write(ofn, coimb.astype(np.float32), header=hdr, clobber=True)
-    print('Wrote', ofn)
+    debug('Wrote', ofn)
     ofn = prefix + '-invvar-m.fits'
     fitsio.write(ofn, coivb.astype(np.float32), header=hdr, clobber=True)
-    print('Wrote', ofn)
+    debug('Wrote', ofn)
     ofn = prefix + '-std-m.fits'
     fitsio.write(ofn, coppb.astype(np.float32), header=hdr, clobber=True)
-    print('Wrote', ofn)
+    debug('Wrote', ofn)
     ofn = prefix + '-n-m.fits'
     fitsio.write(ofn, conb.astype(np.int16), header=hdr, clobber=True)
-    print('Wrote', ofn)
+    debug('Wrote', ofn)
 
     if do_cube:
         ofn = prefix + '-cube.fits'
@@ -761,16 +765,16 @@ def one_coadd(ti, band, W, H, frames,
     if minmax:
         ofn = prefix + '-min-m.fits'
         fitsio.write(ofn, cominb.astype(np.float32), header=hdr, clobber=True)
-        print('Wrote', ofn)
+        debug('Wrote', ofn)
         ofn = prefix + '-max-m.fits'
         fitsio.write(ofn, comaxb.astype(np.float32), header=hdr, clobber=True)
-        print('Wrote', ofn)
+        debug('Wrote', ofn)
         ofn = prefix + '-min-u.fits'
         fitsio.write(ofn, comin.astype(np.float32), header=hdr, clobber=True)
-        print('Wrote', ofn)
+        debug('Wrote', ofn)
         ofn = prefix + '-max-u.fits'
         fitsio.write(ofn, comax.astype(np.float32), header=hdr, clobber=True)
-        print('Wrote', ofn)
+        debug('Wrote', ofn)
 
     frames.included = np.zeros(len(frames), bool)
     frames.sky1 = np.zeros(len(frames), np.float32)
@@ -816,7 +820,7 @@ def one_coadd(ti, band, W, H, frames,
             x0,x1,y0,y1 = frames.imextent[ii,:]
             fullmask[y0:y1+1, x0:x1+1] = mm.omask
             fitsio.write(ofn, fullmask, clobber=True)
-            print('Wrote mask', (i+1), 'of', len(masks), ':', ofn)
+            debug('Wrote mask', (i+1), 'of', len(masks), ':', ofn)
 
     frames.delete_column('wcs')
 
@@ -834,20 +838,21 @@ def one_coadd(ti, band, W, H, frames,
 
     ofn = prefix + '-frames.fits'
     frames.writeto(ofn)
-    print('Wrote', ofn)
+    debug('Wrote', ofn)
 
-    md = tag + '-mask'
-    cmd = ('cd %s && tar czf %s %s && rm -R %s' %
-           (outdir, md + '.tgz', md, md))
-    print('tgz:', cmd)
-    rtn,out,err = run_command(cmd)
-    print(out, err)
-    if rtn:
-        print('ERROR: return code', rtn, file=sys.stderr)
-        print('Command:', cmd, file=sys.stderr)
-        print(out, file=sys.stderr)
-        print(err, file=sys.stderr)
-        ok = False
+    if write_masks:
+        md = tag + '-mask'
+        cmd = ('cd %s && tar czf %s %s && rm -R %s' %
+               (outdir, md + '.tgz', md, md))
+        debug('tgz:', cmd)
+        rtn,out,err = run_command(cmd)
+        debug(out, err)
+        if rtn:
+            print('ERROR: return code', rtn, file=sys.stderr)
+            print('Command:', cmd, file=sys.stderr)
+            print(out, file=sys.stderr)
+            print(err, file=sys.stderr)
+            ok = False
 
     return 0
 
@@ -1356,25 +1361,25 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     assert(len(rimgs) == len(WISE))
 
     if mp1 != mp2:
-        print('Shutting down multiprocessing pool 1')
+        debug('Shutting down multiprocessing pool 1')
         mp1.close()
 
     if do_cube1:
         ofn = '%s-w%i-cube1.fits' % (tile, band)
         fitsio.write(ofn, cube1, clobber=True)
-        print('Wrote', ofn)
+        debug('Wrote', ofn)
 
         ofn = '%s-w%i-coimg1.fits' % (tile, band)
         fitsio.write(ofn, coimg1, clobber=True)
-        print('Wrote', ofn)
+        debug('Wrote', ofn)
 
         ofn = '%s-w%i-cow1.fits' % (tile, band)
         fitsio.write(ofn, cow1, clobber=True)
-        print('Wrote', ofn)
+        debug('Wrote', ofn)
 
         ofn = '%s-w%i-coppstd1.fits' % (tile, band)
         fitsio.write(ofn, coppstd1, clobber=True)
-        print('Wrote', ofn)
+        debug('Wrote', ofn)
 
     if ps:
         # Plot round-one images
@@ -1640,7 +1645,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                          plotfn, ps1, do_dsky, rchi_fraction))
         masks = mp2.map(_bounce_one_round2, args)
         del args
-        print('Accumulating second-round coadds...')
+        debug('Accumulating second-round coadds...')
         t0 = Time()
         coadd = coaddacc(H, W, do_cube=do_cube, nims=len(rimgs), bgmatch=bgmatch,
                          minmax=minmax)
@@ -1745,7 +1750,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     try:
         sky = estimate_mode(coimgb)
         #sky = estimate_sky(coimgb, med-2.*sig1, med+1.*sig1, omit=None)
-        print('Estimated coadd sky:', sky)
+        debug('Estimated coadd sky:', sky)
         coimg  -= sky
         coimgb -= sky
     except np.linalg.LinAlgError:
@@ -2269,7 +2274,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
     rimgs = mp.map(_coadd_one_round1, args)
     del args
 
-    print('Accumulating first-round coadds...')
+    debug('Accumulating first-round coadds...')
     cube = None
     if cube1:
         cube = np.zeros((len([rr for rr in rimgs if rr is not None]), H, W),
