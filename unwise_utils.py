@@ -236,6 +236,12 @@ def phase_from_scanid(scan_id):
     # not vectorized
     scan_int = int(scan_id[0:5])
 
+    scan_letter = scan_id[5]
+
+    if (scan_letter == 'r') or (scan_int >= 88734):
+        phase = 'neo5'
+        return phase
+
     if scan_int < 7101:
         phase = '4band'
     elif scan_int == 7101: 
@@ -295,6 +301,7 @@ def get_l1b_dirs(yml=False, verbose=False):
                   'neo2' : '/project/projectdirs/cosmo/staging/wise/neowiser2/neowiser/p1bm_frm',
                   'neo3' : '/global/projecta/projectdirs/cosmo/staging/wise/neowiser/p1bm_frm',
                   'neo4' : '/project/projectdirs/cosmo/staging/wise/neowiser4/neowiser/p1bm_frm', 
+                  'neo5' : '/project/projectdirs/cosmo/staging/wise/neowiser5/neowiser/p1bm_frm',
                   'missing' : 'merge_p1bm_frm' }
     else:
         fname = os.path.join(os.environ.get('UNWISE_META_DIR'), 'l1b_dirs.yml')
