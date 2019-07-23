@@ -357,7 +357,7 @@ def one_coadd(ti, band, W, H, frames,
 
     if not force_outdir:
         outdir = get_dir_for_coadd(outdir, ti.coadd_id)
-        trymakedirs(outdir)
+    trymakedirs(outdir)
     tag = 'unwise-%s-w%i' % (ti.coadd_id, band)
     prefix = os.path.join(outdir, tag)
     ofn = prefix + '-img-m.fits'
@@ -2692,6 +2692,8 @@ def main():
     else:
         bands = list(opt.band)
 
+    period = opt.period
+
     kwargs = vars(opt)
     print('kwargs:', kwargs)
     # rename
@@ -2703,16 +2705,16 @@ def main():
         kwargs.update({ to: kwargs.pop(fr) })
     for key in ['threads', 'threads1', 'plots', 'pdf', 'plotprefix',
                 'size', 'width', 'height', 'ra', 'dec', 'band', 'name',
-                'tile', 'preprocess', 'cache_frames']:
+                'tile', 'preprocess', 'cache_frames', 'period']:
         kwargs.pop(key)
 
-    if opt.period:
+    if period:
         # Switch to the mode of building short-cadence coadds.
         if not opt.before:
             opt.before = max(WISE.mjd)
         if not opt.after:
             opt.after = min(WISE.mjd)
-        epochs = np.arange(opt.after, opt.before, opt.period)
+        epochs = np.arange(opt.after, opt.before, period)
 
         # if not opt.cache_frames:
         #     f,fn = tempfile.mkstemp()
@@ -2725,20 +2727,23 @@ def main():
         nframes_w1 = []
         nframes_w2 = []
 
-        kwargs.update(write_masks=False)
+        kwargs.update(write_masks=False, force_outdir=True)
         
         epnum = 0
         for i,epoch in enumerate(epochs):
-            epdir = os.path.join(outdir, 'ep%04i' % epnum)
-            trymakedirs(epdir)
+            epdir = os.path.join(opt.outdir, 'ep%04i' % epnum)
+            #trymakedirs(epdir)
             kw = kwargs.copy()
             kw.update(outdir=epdir)
 
             I, = np.nonzero((WISE.mjd >= epoch) *
-                            (WISE.mjd < epoch+opt.period))
+                            (WISE.mjd < epoch+period))
+            if len(I) == 0:
+                print('No coverage for period', epoch, 'to', epoch+period)
+                continue
             I = I[np.array([WISE.band[ii] in bands for ii in I])]
             if len(I) == 0:
-                print('No coverage for period', epoch, 'to', epoch+opt.period)
+                print('No coverage for period', epoch, 'to', epoch+period)
                 continue
             keep.append(i)
             nframes_w1.append(np.sum(WISE.band[I] == 1))
@@ -2746,10 +2751,11 @@ def main():
             epnum += 1
 
             for band in bands:
-                todo.append(((tile, band, W, H, WISE[I]), kw))
+                todo.append((epdir, (tile, band, W, H, WISE[I]), kw))
 
         keep = np.array(keep)
         epochs = epochs[keep]
+        print('Total of', len(epochs), 'epochs to run')
 
         rtnvals = mp2.map(bounce_one_epoch, todo)
 
@@ -2760,7 +2766,7 @@ def main():
         summary = fits_table()
         summary.epochnum = np.arange(len(rtnvals))
         summary.start = epochs
-        summary.finish = epochs + opt.period
+        summary.finish = epochs + period
         ## always the same??
         summary.nframes_w1 = np.array(nframes_w1)
         summary.nframes_w2 = np.array(nframes_w2)
@@ -2791,8 +2797,10 @@ def main():
     return 0
 
 def bounce_one_epoch(X):
-    args,kwargs = X
-    return one_coadd(*args, **kwargs)
+    dirnm, args,kwargs = X
+    rtn = one_coadd(*args, **kwargs)
+    print('Finished', dirnm, 'with return value', rtn)
+    return rtn
 
 if __name__ == '__main__':
     sys.exit(main())
