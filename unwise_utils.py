@@ -238,10 +238,21 @@ def phase_from_scanid(scan_id):
 
     scan_letter = scan_id[5]
 
-    if (scan_letter == 'r') or (scan_int >= 88734):
+    if (scan_int >= 88734):
         phase = 'neo5'
         return phase
 
+    if (scan_letter == 'r'):
+        if (scan_int > 1089):
+            phase = 'neo6'
+        else:
+            phase = 'neo5'
+        return phase
+    
+    if (scan_letter == 's'):
+        phase = 'neo6'
+        return phase
+    
     if scan_int < 7101:
         phase = '4band'
     elif scan_int == 7101: 
@@ -294,14 +305,15 @@ def header_reference_keywords(reference_dir):
 
 def get_l1b_dirs(yml=False, verbose=False):
     if not yml:
-        wdirs = { '4band' : '/project/projectdirs/cosmo/data/wise/allsky/4band_p1bm_frm', 
-                  '3band' : '/project/projectdirs/cosmo/data/wise/cryo_3band/3band_p1bm_frm', 
-                  '2band' : '/project/projectdirs/cosmo/data/wise/postcryo/2band_p1bm_frm',
-                  'neo1' : '/project/projectdirs/cosmo/data/wise/neowiser/p1bm_frm',
-                  'neo2' : '/project/projectdirs/cosmo/staging/wise/neowiser2/neowiser/p1bm_frm',
+        wdirs = { '4band' : '/global/cfs/cdirs/cosmo/data/wise/allsky/4band_p1bm_frm', 
+                  '3band' : '/global/cfs/cdirs/cosmo/data/wise/cryo_3band/3band_p1bm_frm', 
+                  '2band' : '/global/cfs/cdirs/cosmo/data/wise/postcryo/2band_p1bm_frm',
+                  'neo1' : '/global/cfs/cdirs/cosmo/data/wise/neowiser/p1bm_frm',
+                  'neo2' : '/global/cfs/cdirs/cosmo/staging/wise/neowiser2/neowiser/p1bm_frm',
                   'neo3' : '/global/projecta/projectdirs/cosmo/staging/wise/neowiser/p1bm_frm',
-                  'neo4' : '/project/projectdirs/cosmo/staging/wise/neowiser4/neowiser/p1bm_frm', 
-                  'neo5' : '/project/projectdirs/cosmo/staging/wise/neowiser5/neowiser/p1bm_frm',
+                  'neo4' : '/global/cfs/cdirs/cosmo/staging/wise/neowiser4/neowiser/p1bm_frm', 
+                  'neo5' : '/global/cfs/cdirs/cosmo/staging/wise/neowiser5/neowiser/p1bm_frm',
+                  'neo6' : '/global/cfs/cdirs/cosmo/staging/wise/neowiser6/neowiser/p1bm_frm',
                   'missing' : 'merge_p1bm_frm' }
     else:
         fname = os.path.join(os.environ.get('UNWISE_META_DIR'), 'l1b_dirs.yml')
