@@ -239,6 +239,9 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
                         (2, 'neowiser5'),
                         ]:
         fn = os.path.join(wisedir, 'WISE-l1b-metadata-%s.fits' % name)
+        if not os.path.exists(fn):
+            print('WARNING: ignoring missing', fn)
+            continue
         print('Reading', fn)
         bb = [1,2,3,4][:nbands]
         cols = (['ra', 'dec', 'scan_id', 'frame_num',
@@ -2111,18 +2114,62 @@ def _coadd_one_round1(X):
     fullok[np.logical_not(np.isfinite(fullunc))] = False
 
     if medfilt:
+        from astrometry.util.util import median_smooth
+        from scipy.ndimage.filters import uniform_filter
         tmf0 = Time()
         mf = np.zeros_like(fullimg)
         ok = median_smooth(fullimg, np.logical_not(fullok), int(medfilt), mf)
+        # Now mask out significant pixels and repeat the median filter!
+        # This method is courtesy of John Moustakas
+        # Smooth by a boxcar filter before cutting pixels above threshold --
+        boxcar = 5
+        # Sigma of boxcar-smoothed image
+        bsig1 = sig1 / boxcar
+        diff = fullimg - mf
+        diff[np.logical_not(fullok)] = 0.
+        masked = np.abs(uniform_filter(diff, size=boxcar, mode='constant')) > (3.*bsig1)
+        del diff
+        masked = binary_dilation(masked, iterations=3)
+        masked[np.logical_not(fullok)] = True
+        if ps:
+            mf1 = mf.copy()
+        mf[:,:] = 0.
+        h,w = masked.shape
+        frac_masked = np.sum(masked) / (h*w)
+        debug('%.1f %% of pixels masked by boxcar' % (100.*frac_masked))
+        ok = median_smooth(fullimg, masked, int(medfilt), mf)
         fullimg -= mf
         img = fullimg[slc]
         debug('Median filtering with box size', medfilt, 'took', Time()-tmf0)
         if ps:
+            plt.clf()
+            plt.subplot(2,2,1)
+            ima1 = dict(interpolation='nearest', origin='lower',
+                       cmap='gray')
+            ima = dict(interpolation='nearest', origin='lower', vmin=-3*sig1, vmax=+3*sig1,
+                       cmap='gray')
+            plt.imshow(fullimg * fullok, **ima)
+            plt.title('image')
+            plt.subplot(2,2,2)
+            plt.imshow(mf1 - np.median(mf[np.isfinite(mf)]), **ima1)
+            plt.colorbar()
+            plt.title('med.filt 1')
+            plt.subplot(2,2,3)
+            plt.imshow(masked, interpolation='nearest', origin='lower', vmin=0, vmax=1,
+                       cmap='gray')
+            plt.title('mask')
+            plt.subplot(2,2,4)
+            plt.imshow(mf - np.median(mf[np.isfinite(mf)]), **ima1)
+            plt.title('med.filt')
+            plt.colorbar()
+            ps.savefig()
+
             # save for later...
             rr.medfilt = mf * zpscale
         del mf
         
     # add some noise to smooth out "dynacal" artifacts
+    # NOTE -- this is just for the background estimation!
     fim = fullimg[fullok]
     fim += np.random.normal(scale=sig1, size=fim.shape) 
     if ps:
@@ -2424,6 +2471,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
         plt.xlabel('rimg (-sky)')
         #yl,yh = plt.ylim()
         yl,yh = [np.percentile(np.hstack([n for n,e in nn]), p) for p in [3,97]]
+        print('percentiles', yl,yh)
         plt.ylim(yl, yh)
         ps.savefig()
 
