@@ -454,6 +454,10 @@ def one_coadd(ti, band, W, H, frames,
         frames.use *= ok
         debug('Cut out bad scans in W4:', sum(frames.use), 'remaining')
 
+    # Cut ones where the w?intmedian is NaN
+    frames.use *= np.isfinite(frames.intmedian)
+    debug('Cut out intmedian non-finite:', sum(frames.use), 'remaining')
+
     if band in [3,4]:
         # Cut on moon, based on (robust) measure of standard deviation
         if sum(frames.moon_masked[frames.use]):
