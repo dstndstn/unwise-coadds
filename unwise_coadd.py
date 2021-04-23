@@ -192,7 +192,7 @@ def in_radec_box(ra,dec, r0,r1,d0,d1, margin):
                 (dec + margin >= d0) *
                 (dec - margin <= d1))
 
-def get_wise_frames(r0,r1,d0,d1, margin=2.):
+def get_wise_frames(r0,r1,d0,d1, margin=2., bands=[1,2,3,4]):
     '''
     Returns WISE frames touching the given RA,Dec box plus margin.
     '''
@@ -201,7 +201,7 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
     #WISE = fits_table(os.path.join(wisedir, 'WISE-index-L1b.fits'))
     #print('Read', len(WISE), 'WISE L1b frames')
     WISE = []
-    for band in [1,2,3,4]:
+    for band in bands:
         fn = os.path.join(wisedir, 'WISE-index-L1b_w%i.fits' % band)
         print('Reading', fn)
         W = fits_table(fn)
@@ -238,12 +238,18 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
                         (2, 'neowiser4'),
                         (2, 'neowiser5'),
                         ]:
+        # the bands in this dataset
+        bb = [1,2,3,4][:nbands]
+
+        if not any([b in bands for b in bb]):
+            # no bands of interest in this observation phase - skip
+            continue
+
         fn = os.path.join(wisedir, 'WISE-l1b-metadata-%s.fits' % name)
         if not os.path.exists(fn):
             print('WARNING: ignoring missing', fn)
             continue
         print('Reading', fn)
-        bb = [1,2,3,4][:nbands]
         cols = (['ra', 'dec', 'scan_id', 'frame_num',
                  'qual_frame', 'moon_masked', ] +
                 ['w%iintmed16ptile' % b for b in bb] +
@@ -2491,7 +2497,8 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
     return rimgs, coimg, cow, coppstd, coimgsq, cube
 
 def get_wise_frames_for_dataset(dataset, r0,r1,d0,d1,
-                                randomize=False, cache=True, dirnm=None, cachefn=None):
+                                randomize=False, cache=True, dirnm=None, cachefn=None,
+                                bands=[1,2,3,4]):
     WISE = None
     if cache:
         if cachefn is None:
@@ -2509,7 +2516,7 @@ def get_wise_frames_for_dataset(dataset, r0,r1,d0,d1,
 
     if WISE is None:
         # FIXME -- do we need 'margin' here any more?
-        WISE = get_wise_frames(r0,r1,d0,d1)
+        WISE = get_wise_frames(r0,r1,d0,d1, bands=bands)
         # bool -> uint8 to avoid confusing fitsio
         WISE.moon_masked = WISE.moon_masked.astype(np.uint8)
         if randomize:
@@ -2715,7 +2722,13 @@ def main():
         else:
             cache = False
 
-    WISE = get_wise_frames_for_dataset(dataset, r0,r1,d0,d1, cache=cache, cachefn=cachefn)
+    if opt.band is None:
+        bands = [1,2]
+    else:
+        bands = list(opt.band)
+
+    WISE = get_wise_frames_for_dataset(dataset, r0,r1,d0,d1, cache=cache, cachefn=cachefn,
+                                       bands=bands)
 
     if not os.path.exists(opt.outdir) and not opt.wishlist:
         print('Creating output directory', opt.outdir)
@@ -2734,11 +2747,6 @@ def main():
             ps.suffixes = ['png','pdf']
     else:
         ps = None
-
-    if opt.band is None:
-        bands = [1,2]
-    else:
-        bands = list(opt.band)
 
     period = opt.period
 
