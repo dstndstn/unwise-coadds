@@ -243,14 +243,19 @@ def phase_from_scanid(scan_id):
         return phase
 
     if (scan_letter == 'r'):
-        if (scan_int > 1089):
+        if (scan_int > 12253):
+            phase = 'neo7'
+        elif (scan_int > 1089):
             phase = 'neo6'
         else:
             phase = 'neo5'
         return phase
-    
+
     if (scan_letter == 's'):
-        phase = 'neo6'
+        if scan_int > 12253:
+            phase = 'neo7'
+        else:
+            phase = 'neo6'
         return phase
     
     if scan_int < 7101:
@@ -314,6 +319,7 @@ def get_l1b_dirs(yml=False, verbose=False):
                   'neo4' : '/global/cfs/cdirs/cosmo/staging/wise/neowiser4/neowiser/p1bm_frm', 
                   'neo5' : '/global/cfs/cdirs/cosmo/staging/wise/neowiser5/neowiser/p1bm_frm',
                   'neo6' : '/global/cfs/cdirs/cosmo/staging/wise/neowiser6/neowiser/p1bm_frm',
+                  'neo7' : '/global/cfs/cdirs/cosmo/staging/wise/neowiser7/neowiser/p1bm_frm',
                   'missing' : 'merge_p1bm_frm' }
     else:
         fname = os.path.join(os.environ.get('UNWISE_META_DIR'), 'l1b_dirs.yml')
