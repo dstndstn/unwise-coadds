@@ -1251,7 +1251,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     fitsio.write(ofn, copp.astype(np.float32), header=hdr, clobber=True, extname='sample standard deviation, outliers patched')
     print 'Wrote', ofn
     ofn = prefix + '-n-u.fits'
-    fitsio.write(ofn, con.astype(np.int16), header=hdr, clobber=True, extname='integer frame coverage, outlier pixels patched')
+    n_u_type = np.int32 if (np.max(con) >= 2**15) else np.int16
+    fitsio.write(ofn, con.astype(n_u_type), header=hdr, clobber=True, extname='integer frame coverage, outlier pixels patched')
     print 'Wrote', ofn
 
     # "Masked" versions
@@ -1265,7 +1266,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     fitsio.write(ofn, (coppb*(conb != 0)).astype(np.float32), header=hdr, clobber=True, extname='sample standard deviation, outliers removed')
     print 'Wrote', ofn
     ofn = prefix + '-n-m.fits'
-    fitsio.write(ofn, conb.astype(np.int16), header=hdr, clobber=True, extname='integer frame coverage, outlier pixels removed')
+    n_m_type = np.int32 if (np.max(conb) >= 2**15) else np.int16
+    fitsio.write(ofn, conb.astype(n_m_type), header=hdr, clobber=True, extname='integer frame coverage, outlier pixels removed')
     print 'Wrote', ofn
 
     if do_cube:
@@ -1764,11 +1766,11 @@ class coaddacc():
         self.coimg    = np.zeros((H,W))
         self.coimgsq  = np.zeros((H,W))
         self.cow      = np.zeros((H,W))
-        self.con      = np.zeros((H,W), np.int16)
+        self.con      = np.zeros((H,W), np.int32)
         self.coimgb   = np.zeros((H,W))
         self.coimgsqb = np.zeros((H,W))
         self.cowb     = np.zeros((H,W))
-        self.conb     = np.zeros((H,W), np.int16)
+        self.conb     = np.zeros((H,W), np.int32)
 
         self.bgmatch = bgmatch
 
