@@ -27,7 +27,7 @@ from astrometry.util.ttime import Time, MemMeas
 from astrometry.libkd.spherematch import match_radec
 
 import logging
-lvl = logging.INFO
+lvl = logging.DEBUG
 logging.basicConfig(level=lvl, format='%(message)s', stream=sys.stdout)
 logger = logging.getLogger('unwise_coadd')
 def info(*args):
@@ -331,6 +331,8 @@ def one_coadd(ti, band, W, H, frames,
               bgmatch=False, center=False,
               minmax=False, rchi_fraction=0.01, epoch=None,
               before=None, after=None,
+              ascendingOnly=False,
+              descendingOnly=False,
               ps=None,
               wishlist=False,
               mp1=None, mp2=None,
@@ -535,6 +537,9 @@ def one_coadd(ti, band, W, H, frames,
     # count total number of coadd-space pixels -- this determines memory use
     pixinrange = 0.
 
+    frames.ascending = np.zeros(len(frames), bool)
+    frames.descending = np.zeros(len(frames), bool)
+
     nu = 0
     NU = sum(frames.use)
     failedfiles = []
@@ -568,6 +573,14 @@ def one_coadd(ti, band, W, H, frames,
                 print()
 
             if os.path.exists(intfn):
+                hdr = fitsio.read_header(intfn)
+                events = hdr['INEVENTS']
+                events = events.split()
+                print('Frame', wise.scan_id, wise.frame_num, band, 'events:', events)
+                if 'ASCE' in events:
+                    frames.ascending[wi] = True
+                if 'DESC' in events:
+                    frames.descending[wi] = True
                 try:
                     wcs = Sip(intfn)
                 except RuntimeError:
@@ -589,6 +602,14 @@ def one_coadd(ti, band, W, H, frames,
             failedfiles.append(intfnx)
             continue
 
+        if ascendingOnly and not frames.ascending[wi]:
+            frames.use[wi] = False
+            print('Skipping non-ascending frame', wise.scan_id, wise.frame_num, band)
+            continue
+        if descendingOnly and not frames.descending[wi]:
+            frames.use[wi] = False
+            print('Skipping non-descending frame', wise.scan_id, wise.frame_num, band)
+            continue
         h,w = int(wcs.get_height()), int(wcs.get_width())
         r,d = walk_wcs_boundary(wcs, step=2.*w, margin=10)
         ok,u,v = cowcs.radec2iwc(r, d)
@@ -687,6 +708,15 @@ def one_coadd(ti, band, W, H, frames,
 
     t1 = Time()
     debug('Up to coadd_wise:', t1 - t0)
+
+    debug('Frames to coadd after cuts:')
+    ii = np.argsort(frames.mjd)
+    for i in ii:
+        w = frames[i]
+        if not w.use:
+            continue
+        debug('  ', w.scan_id, '%4i' % w.frame_num, 'MJD', w.mjd,
+              'ASC', w.ascending, 'DESC', w.descending, 'RA,Dec %.4f, %.4f' % (w.ra, w.dec))
 
     # Now that we've got some information about the input frames, call
     # the real coadding code.  Maybe we should move this first loop into
@@ -2630,6 +2660,11 @@ def main():
     parser.add_option('--before', type=float, help='Keep only input frames before the given MJD')
     parser.add_option('--after',  type=float, help='Keep only input frames after the given MJD')
 
+    parser.add_option('--ascending', default=False, action='store_true',
+                      help='Keep only ascending scans')
+    parser.add_option('--descending', default=False, action='store_true',
+                      help='Keep only descending scans')
+
     parser.add_option('--no-download', dest='download', default=True, action='store_false',
                       help='Do not download data from IRSA, assume it is already on disk')
 
@@ -2641,7 +2676,7 @@ def main():
     if len(args):
         print('Extra arguments supplied:', args)
         return -1
-    
+
     if opt.threads:
         mp2 = multiproc(opt.threads)
     else:
@@ -2761,6 +2796,8 @@ def main():
                   ('cube', 'do_cube'),
                   ('cube1', 'do_cube1'),
                   ('download', 'allow_download'),
+                  ('ascending', 'ascendingOnly'),
+                  ('descending', 'descendingOnly'),
                   ]:
         kwargs.update({ to: kwargs.pop(fr) })
     for key in ['threads', 'threads1', 'plots', 'pdf', 'plotprefix',
@@ -2781,14 +2818,14 @@ def main():
         #     os.close(f)
         #     opt.cache_frames = fn
         #     WISE.writeto(fn)
-            
+
         todo = []
         keep = []
         nframes_w1 = []
         nframes_w2 = []
 
         kwargs.update(write_masks=False, force_outdir=True)
-        
+
         epnum = 0
         for i,epoch in enumerate(epochs):
             epdir = os.path.join(opt.outdir, 'ep%04i' % epnum)
@@ -2820,7 +2857,7 @@ def main():
         rtnvals = mp2.map(bounce_one_epoch, todo)
 
         rtnvals = np.array(rtnvals)
-        
+
         # measure coverage of central pixel in each epoch??
 
         summary = fits_table()
@@ -2834,10 +2871,9 @@ def main():
         summary.cut(rtnvals == 0)
 
         summary.writeto(os.path.join(opt.outdir, 'summary.fits'))
-                
+
         sys.exit(0)
 
-        
     for band in bands:
         print('Doing coadd tile', tile.coadd_id, 'band', band)
         t0 = Time()
@@ -2886,4 +2922,3 @@ if __name__ == '__main__':
 # M49, 59, M60 (elliptical)
 # M63 (Sunflower galaxy)
 # M64 (Black eye galaxy)
-
