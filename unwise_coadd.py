@@ -46,19 +46,33 @@ median_f = flat_median_f
 # Location of WISE Level 1b inputs
 wisedir = 'wise-frames'
 
-wisedirs = [wisedir, 'merge_p1bm_frm', 'neowiser-frames', 'neowiser2-frames',
-            'neowiser3-frames', 'neowiser4-frames', 'neowiser5-frames']
-
 '''
 at NERSC:
-ln -s /global/project/projectdirs/cosmo/work/wise/etc/etc_neo5 wise-frames
-ln -s /global/project/projectdirs/cosmo/data/wise/merge/merge_p1bm_frm/ .
-ln -s /global/project/projectdirs/cosmo/data/wise/neowiser/p1bm_frm/ neowiser-frames
-ln -s /global/project/projectdirs/cosmo/staging/wise/neowiser2/neowiser/p1bm_frm/ neowiser2-frames
-ln -s /global/projecta/projectdirs/cosmo/staging/wise/neowiser3/neowiser/p1bm_frm/ neowiser3-frames
-ln -s /global/project/projectdirs/cosmo/staging/wise/neowiser4/neowiser/p1bm_frm/ neowiser4-frames
-ln -s /global/project/projectdirs/cosmo/staging/wise/neowiser5/neowiser/p1bm_frm/ neowiser5-frames
+mkdir wise-frames-neo7
+for x in /global/cfs/cdirs/cosmo/work/wise/etc/etc_neo7/W*; do ln -s $x wise-frames-neo7/; done
+ln -s $COSMO/data/wise/merge/merge_p1bm_frm/wise_allsky_4band_p3as_cdd.fits wise-frames-neo7/
+ln -s wise-frames-neo7 wise-frames
+ln -s $COSMO/staging/wise/neowiser7/neowiser/p1bm_frm neowiser7-frames
+ln -s $COSMO/staging/wise/neowiser6/neowiser/p1bm_frm neowiser6-frames
+ln -s $COSMO/staging/wise/neowiser5/neowiser/p1bm_frm neowiser5-frames
+ln -s $COSMO/staging/wise/neowiser4/neowiser/p1bm_frm/ neowiser4-frames
+ln -s $COSMO/staging/wise/neowiser3/neowiser/p1bm_frm/ neowiser3-frames
+ln -s $COSMO/staging/wise/neowiser2/neowiser/p1bm_frm/ neowiser2-frames
+ln -s $COSMO/data/wise/neowiser/p1bm_frm/ neowiser-frames
+ln -s $COSMO/data/wise/merge/merge_p1bm_frm/ .
 '''
+
+wisedirs = [wisedir,
+            'merge_p1bm_frm',
+            'neowiser-frames',
+            'neowiser2-frames',
+            'neowiser3-frames',
+            'neowiser4-frames',
+            'neowiser5-frames',
+            'neowiser6-frames',
+            'neowiser7-frames',
+]
+# when adding a year, also see below in "The metadata files to read:"...
 
 
 mask_gz = True
@@ -237,6 +251,8 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
                         (2, 'neowiser3'),
                         (2, 'neowiser4'),
                         (2, 'neowiser5'),
+                        (2, 'neowiser6'),
+                        (2, 'neowiser7'),
                         ]:
         fn = os.path.join(wisedir, 'WISE-l1b-metadata-%s.fits' % name)
         if not os.path.exists(fn):
