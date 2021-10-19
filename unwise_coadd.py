@@ -28,8 +28,9 @@ from astrometry.libkd.spherematch import match_radec
 
 import logging
 lvl = logging.INFO
-logging.basicConfig(level=lvl, format='%(message)s', stream=sys.stdout)
-logger = logging.getLogger('unwise_coadd')
+#logging.basicConfig(level=lvl, format='%(message)s', stream=sys.stdout)
+#logger = logging.getLogger('unwise_coadd')
+logger = None
 def info(*args):
     msg = ' '.join(map(str, args))
     logger.info(msg)
@@ -2642,8 +2643,18 @@ def main():
 
     parser.add_argument('--period', type=float, help='Build a series of coadds separated by this period, in days.')
 
+    parser.add_argument('-v', '--verbose', dest='verbose', action='count',
+                        default=0, help='Make more verbose')
+
     opt = parser.parse_args()
 
+    if opt.verbose == 0:
+        lvl = logging.INFO
+    else:
+        lvl = logging.DEBUG
+    logging.basicConfig(level=lvl, format='%(message)s', stream=sys.stdout)
+    global logger
+    logger = logging.getLogger('unwise_coadd')
 
     if opt.threads:
         mp2 = multiproc(opt.threads)
@@ -2766,7 +2777,8 @@ def main():
         kwargs.update({ to: kwargs.pop(fr) })
     for key in ['threads', 'threads1', 'plots', 'pdf', 'plotprefix',
                 'size', 'width', 'height', 'ra', 'dec', 'band', 'name',
-                'tile', 'preprocess', 'cache_frames', 'period']:
+                'tile', 'preprocess', 'cache_frames', 'period',
+                'verbose']:
         kwargs.pop(key)
 
     if period:
