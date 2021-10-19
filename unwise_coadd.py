@@ -2539,114 +2539,112 @@ def get_wise_frames_for_dataset(dataset, r0,r1,d0,d1,
     return WISE
 
 def main():
-    import optparse
+    import argparse
     from astrometry.util.multiproc import multiproc
 
-    parser = optparse.OptionParser('%prog [options]')
+    parser = argparse.ArgumentParser('%prog [options]')
 
-    parser.add_option('--threads', dest='threads', type=int, help='Multiproc',
+    parser.add_argument('--threads', dest='threads', type=int, help='Multiproc',
                       default=None)
-    parser.add_option('--threads1', dest='threads1', type=int, default=None,
+    parser.add_argument('--threads1', dest='threads1', type=int, default=None,
                       help='Multithreading during round 1')
 
-    parser.add_option('-w', dest='wishlist', action='store_true',
+    parser.add_argument('-w', dest='wishlist', action='store_true',
                       default=False, help='Print needed frames and exit?')
-    parser.add_option('--plots', dest='plots', action='store_true',
+    parser.add_argument('--plots', dest='plots', action='store_true',
                       default=False)
-    parser.add_option('--plots2', dest='plots2', action='store_true',
+    parser.add_argument('--plots2', dest='plots2', action='store_true',
                       default=False)
-    parser.add_option('--pdf', dest='pdf', action='store_true', default=False)
+    parser.add_argument('--pdf', dest='pdf', action='store_true', default=False)
 
-    parser.add_option('--plot-prefix', dest='plotprefix', default=None)
+    parser.add_argument('--plot-prefix', dest='plotprefix', default=None)
 
-    parser.add_option('--outdir', '-o', dest='outdir', default='unwise-coadds',
-                      help='Output directory: default %default')
+    parser.add_argument('--outdir', '-o', dest='outdir', default='unwise-coadds',
+                      help='Output directory: default %(default)s')
 
-    parser.add_option('--size', dest='size', default=2048, type=int,
-                      help='Set output image size in pixels; default %default')
-    parser.add_option('--width', dest='width', default=0, type=int,
+    parser.add_argument('--size', dest='size', default=2048, type=int,
+                      help='Set output image size in pixels; default %(default)s')
+    parser.add_argument('--width', dest='width', default=0, type=int,
                       help='Set output image width in pixels; default --size')
-    parser.add_option('--height', dest='height', default=0, type=int,
+    parser.add_argument('--height', dest='height', default=0, type=int,
                       help='Set output image height in pixels; default --size')
 
-    parser.add_option('--pixscale', dest='pixscale', type=float, default=2.75,
-                      help='Set coadd pixel scale, default %default arcsec/pixel')
-    parser.add_option('--cube', dest='cube', action='store_true',
+    parser.add_argument('--pixscale', dest='pixscale', type=float, default=2.75,
+                      help='Set coadd pixel scale, default %(default)s arcsec/pixel')
+    parser.add_argument('--cube', dest='cube', action='store_true',
                       default=False, help='Save & write out image cube')
-    parser.add_option('--cube1', dest='cube1', action='store_true',
+    parser.add_argument('--cube1', dest='cube1', action='store_true',
                       default=False, help='Save & write out image cube for round 1')
 
-    parser.add_option('--frame0', dest='frame0', default=0, type=int,
+    parser.add_argument('--frame0', dest='frame0', default=0, type=int,
                       help='Only use a subset of the frames: starting with frame0')
-    parser.add_option('--nframes', dest='nframes', default=0, type=int,
+    parser.add_argument('--nframes', dest='nframes', default=0, type=int,
                       help='Only use a subset of the frames: number nframes')
-    parser.add_option('--nframes-random', dest='nframes_random', default=0, type=int,
+    parser.add_argument('--nframes-random', dest='nframes_random', default=0, type=int,
                       help='Only use a RANDOM subset of the frames: number nframes')
 
-    parser.add_option('--medfilt', dest='medfilt', type=int, default=None,
+    parser.add_argument('--medfilt', dest='medfilt', type=int, default=None,
                       help=('Median filter with a box twice this size (+1),'+
                             ' to remove varying background.  Default: none for W1,W2; 50 for W3,W4.'))
 
-    parser.add_option('--force', dest='force', action='store_true',
+    parser.add_argument('--force', dest='force', action='store_true',
                       default=False, 
                       help='Run even if output file already exists?')
 
-    parser.add_option('--maxmem', dest='maxmem', type=float, default=0,
+    parser.add_argument('--maxmem', dest='maxmem', type=float, default=0,
                       help='Quit if predicted memory usage > n GB')
 
-    parser.add_option('--dsky', dest='dsky', action='store_true',
+    parser.add_argument('--dsky', dest='dsky', action='store_true',
                       default=False,
                       help='Do background-matching by matching medians '
                       '(to first-round coadd)')
 
-    parser.add_option('--bgmatch', dest='bgmatch', action='store_true',
+    parser.add_argument('--bgmatch', dest='bgmatch', action='store_true',
                       default=False,
                       help='Do background-matching by matching medians '
                       '(when accumulating first-round coadd)')
 
-    parser.add_option('--center', dest='center', action='store_true',
+    parser.add_argument('--center', dest='center', action='store_true',
                       default=False,
                       help='Read frames in order of distance from center; for debugging.')
 
-    parser.add_option('--minmax', action='store_true',
+    parser.add_argument('--minmax', action='store_true',
                       help='Record the minimum and maximum values encountered during coadd?')
 
-    parser.add_option('--ra', dest='ra', type=float, default=None,
+    parser.add_argument('--ra', dest='ra', type=float, default=None,
                       help='Build coadd at given RA center')
-    parser.add_option('--dec', dest='dec', type=float, default=None,
+    parser.add_argument('--dec', dest='dec', type=float, default=None,
                       help='Build coadd at given Dec center')
-    parser.add_option('--band', type=int, default=None, action='append',
+    parser.add_argument('--band', type=int, default=None, action='append',
                       help='with --ra,--dec: band(s) to do (1,2,3,4)')
 
-    parser.add_option('--name', default=None,
+    parser.add_argument('--name', default=None,
                       help='Output file name: unwise-NAME-w?-*.fits')
 
-    parser.add_option('--tile', dest='tile', type=str, default=None,
+    parser.add_argument('--tile', dest='tile', type=str, default=None,
                       help='Run a single tile, eg, 0832p196')
 
-    parser.add_option('--preprocess', dest='preprocess', action='store_true',
+    parser.add_argument('--preprocess', dest='preprocess', action='store_true',
                       default=False, help='Preprocess (write *-atlas, *-frames.fits) only')
 
-    parser.add_option('--rchi-fraction', dest='rchi_fraction', type=float,
+    parser.add_argument('--rchi-fraction', dest='rchi_fraction', type=float,
                       default=0.01, help='Fraction of outlier pixels to reject frame')
 
-    parser.add_option('--epoch', type=int, help='Keep only input frames in the given epoch, zero-indexed')
+    parser.add_argument('--epoch', type=int, help='Keep only input frames in the given epoch, zero-indexed')
 
-    parser.add_option('--before', type=float, help='Keep only input frames before the given MJD')
-    parser.add_option('--after',  type=float, help='Keep only input frames after the given MJD')
+    parser.add_argument('--before', type=float, help='Keep only input frames before the given MJD')
+    parser.add_argument('--after',  type=float, help='Keep only input frames after the given MJD')
 
-    parser.add_option('--no-download', dest='download', default=True, action='store_false',
+    parser.add_argument('--no-download', dest='download', default=True, action='store_false',
                       help='Do not download data from IRSA, assume it is already on disk')
 
-    parser.add_option('--cache-frames', help='For custom --ra,--dec coadds, cache the overlapping frames in this file.')
+    parser.add_argument('--cache-frames', help='For custom --ra,--dec coadds, cache the overlapping frames in this file.')
 
-    parser.add_option('--period', type=float, help='Build a series of coadds separated by this period, in days.')
+    parser.add_argument('--period', type=float, help='Build a series of coadds separated by this period, in days.')
 
-    opt,args = parser.parse_args()
-    if len(args):
-        print('Extra arguments supplied:', args)
-        return -1
-    
+    opt = parser.parse_args()
+
+
     if opt.threads:
         mp2 = multiproc(opt.threads)
     else:
@@ -2664,9 +2662,8 @@ def main():
         return -1
 
     print('unwise_coadd.py starting: args:', sys.argv)
-
-    print('opt:', opt)
-    print(dir(opt))
+    #print('opt:', opt)
+    #print(dir(opt))
 
     Time.add_measurement(MemMeas)
 
@@ -2861,7 +2858,7 @@ def main():
     return 0
 
 def bounce_one_epoch(X):
-    dirnm, args,kwargs = X
+    dirnm, args, kwargs = X
     rtn = one_coadd(*args, **kwargs)
     print('Finished', dirnm, 'with return value', rtn)
     return rtn
