@@ -540,13 +540,13 @@ def one_coadd(ti, band, W, H, frames,
 
     # *inclusive* coordinates of the bounding-box in the coadd of this
     # image (x0,x1,y0,y1)
-    frames.coextent = np.zeros((len(frames), 4), int)
+    frames.coextent = np.zeros((len(frames), 4), np.int32)
     # *inclusive* coordinates of the bounding-box in the image
     # overlapping coadd
-    frames.imextent = np.zeros((len(frames), 4), int)
+    frames.imextent = np.zeros((len(frames), 4), np.int32)
 
-    frames.imagew = np.zeros(len(frames), np.int)
-    frames.imageh = np.zeros(len(frames), np.int)
+    frames.imagew = np.zeros(len(frames), np.int32)
+    frames.imageh = np.zeros(len(frames), np.int32)
     frames.intfn  = np.zeros(len(frames), object)
     frames.wcs    = np.zeros(len(frames), object)
 
@@ -733,11 +733,8 @@ def one_coadd(ti, band, W, H, frames,
     coimb[coivb == 0] = coim[coivb == 0]
 
     # Plug the WCS header cards into the output coadd files.
-    f,wcsfn = tempfile.mkstemp()
-    os.close(f)
-    cowcs.write_to(wcsfn)
-    hdr = fitsio.read_header(wcsfn)
-    os.remove(wcsfn)
+    hdr = fitsio.FITSHDR()
+    cowcs.add_to_header(hdr)
 
     hdr.add_record(dict(name='MAGZP', value=22.5,
                         comment='Magnitude zeropoint (in Vega mag)'))
@@ -772,7 +769,7 @@ def one_coadd(ti, band, W, H, frames,
     fitsio.write(ofn, copp.astype(np.float32), header=hdr, clobber=True)
     debug('Wrote', ofn)
     ofn = prefix + '-n-u.fits'
-    fitsio.write(ofn, con.astype(np.int16), header=hdr, clobber=True)
+    fitsio.write(ofn, con.astype(np.int32), header=hdr, clobber=True)
     debug('Wrote', ofn)
 
     # "Masked" versions
@@ -786,7 +783,7 @@ def one_coadd(ti, band, W, H, frames,
     fitsio.write(ofn, coppb.astype(np.float32), header=hdr, clobber=True)
     debug('Wrote', ofn)
     ofn = prefix + '-n-m.fits'
-    fitsio.write(ofn, conb.astype(np.int16), header=hdr, clobber=True)
+    fitsio.write(ofn, conb.astype(np.int32), header=hdr, clobber=True)
     debug('Wrote', ofn)
 
     if do_cube:
