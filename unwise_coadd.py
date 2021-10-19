@@ -2629,6 +2629,9 @@ def main():
 
     parser.add_argument('--zoom', type=int, nargs=4,
                         help='Set target image extent (default "0 2048 0 2048")')
+    parser.add_argument('--grid', type=int, nargs='?', default=0, const=2048,
+                        help='Grid this (large custom) image into pieces of this size.')
+
     parser.add_argument('--name', default=None,
                       help='Output file name: unwise-NAME-w?-*.fits')
 
@@ -2775,6 +2778,7 @@ def main():
         bands = list(opt.band)
 
     period = opt.period
+    grid = opt.grid
 
     kwargs = vars(opt)
     print('kwargs:', kwargs)
@@ -2787,7 +2791,7 @@ def main():
         kwargs.update({ to: kwargs.pop(fr) })
     for key in ['threads', 'threads1', 'plots', 'pdf', 'plotprefix',
                 'size', 'width', 'height', 'ra', 'dec', 'band', 'name',
-                'tile', 'preprocess', 'cache_frames', 'period',
+                'tile', 'preprocess', 'cache_frames', 'period', 'grid',
                 'verbose']:
         kwargs.pop(key)
 
@@ -2860,6 +2864,82 @@ def main():
                 
         sys.exit(0)
 
+    if grid:
+        orig_name = tile.coadd_id
+        nw = int(np.ceil(W / float(grid)))
+        nh = int(np.ceil(H / float(grid)))
+        cowcs = get_coadd_tile_wcs(tile.ra, tile.dec, W, H, opt.pixscale)
+        for band in bands:
+            for y in range(nh):
+                for x in range(nw):
+                    print('Doing coadd grid tile', tile.coadd_id, 'band', band, 'x,y', x,y)
+                    kwcopy = kwargs.copy()
+                    kwcopy['zoom'] = (x*grid, min((x+1)*grid, W),
+                                      y*grid, min((y+1)*grid, H))
+                    kwcopy.update(ps=ps, mp1=mp1, mp2=mp2)
+                    tile.coadd_id = orig_name + '_grid_%i_%i' % (x, y)
+                    if one_coadd(tile, band, W, H, WISE, **kwcopy):
+                        return -1
+            frames = []
+            for suffix in ['-img-m.fits', '-invvar-m.fits', '-std-m.fits', '-n-m.fits',
+                           '-img-u.fits', '-invvar-u.fits', '-std-u.fits', '-n-u.fits',
+                           '-frames.fits']:
+                dtype = np.float32
+                if '-n-' in suffix:
+                    dtype = np.int32
+                elif 'frames' in suffix:
+                    dtype = None
+
+                if dtype is not None:
+                    hdr = fitsio.FITSHDR()
+                    hdr.add_record(dict(name='UNW_GRID', value=grid, comment='Grid size for sub-coadds'))
+                    cowcs.add_to_header(hdr)
+                    img = np.zeros((H,W), dtype)
+                for y in range(nh):
+                    for x in range(nw):
+                        coadd_id = orig_name + '_grid_%i_%i' % (x, y)
+                        tag = 'unwise-%s-w%i' % (coadd_id, band)
+                        indir = opt.outdir
+                        indir = get_dir_for_coadd(indir, coadd_id)
+                        prefix = os.path.join(indir, tag)
+                        fn = prefix + suffix
+                        print('Reading', fn)
+                        if dtype is not None:
+                            gimg,ghdr = fitsio.read(fn, header=True)
+                            #if x == 0 and y == 0:
+                            #    hdr = ghdr
+                            img[y*grid : min((y+1)*grid, H),
+                                x*grid : min((x+1)*grid, W)] = gimg
+                            del gimg
+                            for r in ghdr.records():
+                                key = r['name']
+                                if key == 'UNW_SKY':
+                                    hdr.add_record(dict(name='UNSK%i_%i' % (x,y),
+                                                        value=r['value'],
+                                                        comment='UNW_SKY (subtracted) from tile %i,%i' % (x,y)))
+                                elif key == 'MAGZP' or key.startswith('UNW_'):
+                                    hdr.add_record(r)
+                        else:
+                            gf = fits_table(fn)
+                            gf.grid_x = np.zeros(len(gf), np.int16) + x
+                            gf.grid_y = np.zeros(len(gf), np.int16) + y
+                            frames.append(gf)
+                tag = 'unwise-%s-w%i' % (orig_name, band)
+                outdir = opt.outdir
+                outdir = get_dir_for_coadd(outdir, orig_name)
+                prefix = os.path.join(outdir, tag)
+                fn = prefix + suffix
+                print('Writing', fn)
+                if dtype is not None:
+                    fitsio.write(fn, img, clobber=True, header=hdr)
+                    del img
+                else:
+                    frames = merge_tables(frames)
+                    frames.writeto(fn)
+                    del frames
+
+        #tile.coadd_id = orig_name
+        sys.exit(0)
         
     for band in bands:
         print('Doing coadd tile', tile.coadd_id, 'band', band)
