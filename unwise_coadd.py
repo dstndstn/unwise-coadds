@@ -336,6 +336,7 @@ def get_epoch_breaks(mjds):
 
 def one_coadd(ti, band, W, H, frames,
               pixscale=2.75,
+              zoom=None,
               outdir='unwise-coadds',
               medfilt=None,
               do_dsky=False,
@@ -387,6 +388,14 @@ def one_coadd(ti, band, W, H, frames,
             return 0
 
     cowcs = get_coadd_tile_wcs(ti.ra, ti.dec, W, H, pixscale)
+    if zoom is not None:
+        (x0,x1,y0,y1) = zoom
+        W = x1-x0
+        H = y1-y0
+        zoomwcs = cowcs.get_subimage(x0, y0, W, H)
+        print('Zooming WCS from', cowcs, 'to', zoomwcs)
+        cowcs = zoomwcs
+
     # Intermediate world coordinates (IWC) polygon
     r,d = walk_wcs_boundary(cowcs, step=W, margin=10)
     ok,u,v = cowcs.radec2iwc(r,d)
@@ -400,9 +409,11 @@ def one_coadd(ti, band, W, H, frames,
               ) # in deg
     t0 = Time()
 
+    ra_center,dec_center = cowcs.radec_center()
+
     # cut
     frames = frames[frames.band == band]
-    frames.cut(degrees_between(ti.ra, ti.dec, frames.ra, frames.dec) < margin)
+    frames.cut(degrees_between(ra_center, dec_center, frames.ra, frames.dec) < margin)
     debug('Found', len(frames), 'WISE frames in range and in band W%i' % band)
 
     if before is not None:
@@ -434,7 +445,7 @@ def one_coadd(ti, band, W, H, frames,
 
     if bgmatch or center:
         # reorder by dist from center
-        frames.cut(np.argsort(degrees_between(ti.ra, ti.dec, frames.ra, frames.dec)))
+        frames.cut(np.argsort(degrees_between(ra_center, dec_center, frames.ra, frames.dec)))
     
     if ps and False:
         plt.clf()
@@ -2619,6 +2630,8 @@ def main():
     parser.add_argument('--band', type=int, default=None, action='append',
                       help='with --ra,--dec: band(s) to do (1,2,3,4)')
 
+    parser.add_argument('--zoom', type=int, nargs=4,
+                        help='Set target image extent (default "0 2048 0 2048")')
     parser.add_argument('--name', default=None,
                       help='Output file name: unwise-NAME-w?-*.fits')
 
