@@ -1674,7 +1674,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
         Nimgs = len(rimgs)
         del rimgs
 
-        maskiter = mp2.imap_unordered(_bounce_one_round2, args)
+        maskiter = mp2.imap(_bounce_one_round2, args)
         del args
         info('Accumulating second-round coadds...')
         coadd = coaddacc(H, W, do_cube=do_cube, nims=Nimgs, bgmatch=bgmatch,
@@ -2889,12 +2889,12 @@ def main():
             for y in range(nh):
                 for x in range(nw):
                     t0 = Time()
+                    tile.coadd_id = orig_name + '_grid_%i_%i' % (x, y)
                     print('Doing coadd grid tile', tile.coadd_id, 'band', band, 'x,y', x,y)
                     kwcopy = kwargs.copy()
                     kwcopy['zoom'] = (x*grid, min((x+1)*grid, W),
                                       y*grid, min((y+1)*grid, H))
                     kwcopy.update(ps=ps, mp1=mp1, mp2=mp2)
-                    tile.coadd_id = orig_name + '_grid_%i_%i' % (x, y)
                     if one_coadd(tile, band, W, H, WISE, **kwcopy):
                         return -1
                     print('Grid tile', tile.coadd_id, 'band', band, 'x,y', x,y, ':', Time()-t0)
