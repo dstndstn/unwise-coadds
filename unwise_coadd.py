@@ -1688,11 +1688,11 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                 mm = next(maskiter)
             except StopIteration:
                 break
+            i += 1
+            masks.append(mm)
             if mm is None:
                 continue
             coadd.acc(mm, delmm=delmm)
-            masks.append(mm)
-            i += 1
             if i == inext:
                 inext *= 2
                 info('Accumulated', i, 'of', Nimgs, ':', Time()-t0)
