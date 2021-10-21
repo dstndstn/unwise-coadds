@@ -1671,15 +1671,31 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                       (WISE.scan_id[ri], WISE.frame_num[ri], band))
             args.append((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
                          plotfn, ps1, do_dsky, rchi_fraction))
-        masks = mp2.map(_bounce_one_round2, args)
+        Nimgs = len(rimgs)
+        del rimgs
+
+        maskiter = mp2.imap_unordered(_bounce_one_round2, args)
         del args
-        debug('Accumulating second-round coadds...')
-        t0 = Time()
-        coadd = coaddacc(H, W, do_cube=do_cube, nims=len(rimgs), bgmatch=bgmatch,
+        info('Accumulating second-round coadds...')
+        coadd = coaddacc(H, W, do_cube=do_cube, nims=Nimgs, bgmatch=bgmatch,
                          minmax=minmax)
-        for mm in masks:
+        t0 = Time()
+        inext = 16
+        i = 0
+        masks = []
+        while True:
+            try:
+                mm = next(maskiter)
+            except StopIteration:
+                break
+            if mm is None:
+                continue
             coadd.acc(mm, delmm=delmm)
-        debug(Time()-t0)
+            masks.append(mm)
+            i += 1
+            if i == inext:
+                inext *= 2
+                info('Accumulated', i, 'of', Nimgs, ':', Time()-t0)
 
     coadd.finish()
 
@@ -2872,6 +2888,7 @@ def main():
         for band in bands:
             for y in range(nh):
                 for x in range(nw):
+                    t0 = Time()
                     print('Doing coadd grid tile', tile.coadd_id, 'band', band, 'x,y', x,y)
                     kwcopy = kwargs.copy()
                     kwcopy['zoom'] = (x*grid, min((x+1)*grid, W),
@@ -2880,6 +2897,7 @@ def main():
                     tile.coadd_id = orig_name + '_grid_%i_%i' % (x, y)
                     if one_coadd(tile, band, W, H, WISE, **kwcopy):
                         return -1
+                    print('Grid tile', tile.coadd_id, 'band', band, 'x,y', x,y, ':', Time()-t0)
             frames = []
             for suffix in ['-img-m.fits', '-invvar-m.fits', '-std-m.fits', '-n-m.fits',
                            '-img-u.fits', '-invvar-u.fits', '-std-u.fits', '-n-u.fits',
