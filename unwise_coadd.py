@@ -27,9 +27,6 @@ from astrometry.util.ttime import Time, MemMeas
 from astrometry.libkd.spherematch import match_radec
 
 import logging
-lvl = logging.INFO
-#logging.basicConfig(level=lvl, format='%(message)s', stream=sys.stdout)
-#logger = logging.getLogger('unwise_coadd')
 logger = None
 def info(*args):
     msg = ' '.join(map(str, args))
@@ -207,7 +204,7 @@ def in_radec_box(ra,dec, r0,r1,d0,d1, margin):
                 (dec + margin >= d0) *
                 (dec - margin <= d1))
 
-def get_wise_frames(r0,r1,d0,d1, margin=2.):
+def get_wise_frames(r0,r1,d0,d1, margin=2., bands=[1,2,3,4]):
     '''
     Returns WISE frames touching the given RA,Dec box plus margin.
     '''
@@ -216,7 +213,7 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
     #WISE = fits_table(os.path.join(wisedir, 'WISE-index-L1b.fits'))
     #print('Read', len(WISE), 'WISE L1b frames')
     WISE = []
-    for band in [1,2,3,4]:
+    for band in bands:
         fn = os.path.join(wisedir, 'WISE-index-L1b_w%i.fits' % band)
         print('Reading', fn)
         W = fits_table(fn)
@@ -255,12 +252,18 @@ def get_wise_frames(r0,r1,d0,d1, margin=2.):
                         (2, 'neowiser6'),
                         (2, 'neowiser7'),
                         ]:
+        # the bands in this dataset
+        bb = [1,2,3,4][:nbands]
+
+        if not any([b in bands for b in bb]):
+            # no bands of interest in this observation phase - skip
+            continue
+
         fn = os.path.join(wisedir, 'WISE-l1b-metadata-%s.fits' % name)
         if not os.path.exists(fn):
             print('WARNING: ignoring missing', fn)
             continue
         print('Reading', fn)
-        bb = [1,2,3,4][:nbands]
         cols = (['ra', 'dec', 'scan_id', 'frame_num',
                  'qual_frame', 'moon_masked', ] +
                 ['w%iintmed16ptile' % b for b in bb] +
@@ -343,6 +346,8 @@ def one_coadd(ti, band, W, H, frames,
               bgmatch=False, center=False,
               minmax=False, rchi_fraction=0.01, epoch=None,
               before=None, after=None,
+              ascendingOnly=False,
+              descendingOnly=False,
               ps=None,
               wishlist=False,
               mp1=None, mp2=None,
@@ -476,6 +481,10 @@ def one_coadd(ti, band, W, H, frames,
         frames.use *= ok
         debug('Cut out bad scans in W4:', sum(frames.use), 'remaining')
 
+    # Cut ones where the w?intmedian is NaN
+    frames.use *= np.isfinite(frames.intmedian)
+    debug('Cut out intmedian non-finite:', sum(frames.use), 'remaining')
+
     if band in [3,4]:
         # Cut on moon, based on (robust) measure of standard deviation
         if sum(frames.moon_masked[frames.use]):
@@ -553,6 +562,9 @@ def one_coadd(ti, band, W, H, frames,
     # count total number of coadd-space pixels -- this determines memory use
     pixinrange = 0.
 
+    frames.ascending = np.zeros(len(frames), bool)
+    frames.descending = np.zeros(len(frames), bool)
+
     nu = 0
     NU = sum(frames.use)
     failedfiles = []
@@ -586,6 +598,14 @@ def one_coadd(ti, band, W, H, frames,
                 print()
 
             if os.path.exists(intfn):
+                hdr = fitsio.read_header(intfn)
+                events = hdr['INEVENTS']
+                events = events.split()
+                print('Frame', wise.scan_id, wise.frame_num, band, 'events:', events)
+                if 'ASCE' in events:
+                    frames.ascending[wi] = True
+                if 'DESC' in events:
+                    frames.descending[wi] = True
                 try:
                     wcs = Sip(intfn)
                 except RuntimeError:
@@ -607,6 +627,14 @@ def one_coadd(ti, band, W, H, frames,
             failedfiles.append(intfnx)
             continue
 
+        if ascendingOnly and not frames.ascending[wi]:
+            frames.use[wi] = False
+            print('Skipping non-ascending frame', wise.scan_id, wise.frame_num, band)
+            continue
+        if descendingOnly and not frames.descending[wi]:
+            frames.use[wi] = False
+            print('Skipping non-descending frame', wise.scan_id, wise.frame_num, band)
+            continue
         h,w = int(wcs.get_height()), int(wcs.get_width())
         r,d = walk_wcs_boundary(wcs, step=2.*w, margin=10)
         ok,u,v = cowcs.radec2iwc(r, d)
@@ -705,6 +733,15 @@ def one_coadd(ti, band, W, H, frames,
 
     t1 = Time()
     debug('Up to coadd_wise:', t1 - t0)
+
+    debug('Frames to coadd after cuts:')
+    ii = np.argsort(frames.mjd)
+    for i in ii:
+        w = frames[i]
+        if not w.use:
+            continue
+        debug('  ', w.scan_id, '%4i' % w.frame_num, 'MJD', w.mjd,
+              'ASC', w.ascending, 'DESC', w.descending, 'RA,Dec %.4f, %.4f' % (w.ra, w.dec))
 
     # Now that we've got some information about the input frames, call
     # the real coadding code.  Maybe we should move this first loop into
@@ -2532,7 +2569,8 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
     return rimgs, coimg, cow, coppstd, coimgsq, cube
 
 def get_wise_frames_for_dataset(dataset, r0,r1,d0,d1,
-                                randomize=False, cache=True, dirnm=None, cachefn=None):
+                                randomize=False, cache=True, dirnm=None, cachefn=None,
+                                bands=[1,2,3,4]):
     WISE = None
     if cache:
         if cachefn is None:
@@ -2550,7 +2588,7 @@ def get_wise_frames_for_dataset(dataset, r0,r1,d0,d1,
 
     if WISE is None:
         # FIXME -- do we need 'margin' here any more?
-        WISE = get_wise_frames(r0,r1,d0,d1)
+        WISE = get_wise_frames(r0,r1,d0,d1, bands=bands)
         # bool -> uint8 to avoid confusing fitsio
         WISE.moon_masked = WISE.moon_masked.astype(np.uint8)
         if randomize:
@@ -2665,6 +2703,11 @@ def main():
     parser.add_argument('--before', type=float, help='Keep only input frames before the given MJD')
     parser.add_argument('--after',  type=float, help='Keep only input frames after the given MJD')
 
+    parser.add_argument('--ascending', default=False, action='store_true',
+                        help='Keep only ascending scans')
+    parser.add_argument('--descending', default=False, action='store_true',
+                        help='Keep only descending scans')
+
     parser.add_argument('--no-download', dest='download', default=True, action='store_false',
                       help='Do not download data from IRSA, assume it is already on disk')
 
@@ -2768,7 +2811,13 @@ def main():
         else:
             cache = False
 
-    WISE = get_wise_frames_for_dataset(dataset, r0,r1,d0,d1, cache=cache, cachefn=cachefn)
+    if opt.band is None:
+        bands = [1,2]
+    else:
+        bands = list(opt.band)
+
+    WISE = get_wise_frames_for_dataset(dataset, r0,r1,d0,d1, cache=cache, cachefn=cachefn,
+                                       bands=bands)
 
     if not os.path.exists(opt.outdir) and not opt.wishlist:
         print('Creating output directory', opt.outdir)
@@ -2788,11 +2837,6 @@ def main():
     else:
         ps = None
 
-    if opt.band is None:
-        bands = [1,2]
-    else:
-        bands = list(opt.band)
-
     period = opt.period
     grid = opt.grid
 
@@ -2803,6 +2847,8 @@ def main():
                   ('cube', 'do_cube'),
                   ('cube1', 'do_cube1'),
                   ('download', 'allow_download'),
+                  ('ascending', 'ascendingOnly'),
+                  ('descending', 'descendingOnly'),
                   ]:
         kwargs.update({ to: kwargs.pop(fr) })
     for key in ['threads', 'threads1', 'plots', 'pdf', 'plotprefix',
@@ -2824,14 +2870,14 @@ def main():
         #     os.close(f)
         #     opt.cache_frames = fn
         #     WISE.writeto(fn)
-            
+
         todo = []
         keep = []
         nframes_w1 = []
         nframes_w2 = []
 
         kwargs.update(write_masks=False, force_outdir=True)
-        
+
         epnum = 0
         for i,epoch in enumerate(epochs):
             epdir = os.path.join(opt.outdir, 'ep%04i' % epnum)
@@ -2863,7 +2909,7 @@ def main():
         rtnvals = mp2.map(bounce_one_epoch, todo)
 
         rtnvals = np.array(rtnvals)
-        
+
         # measure coverage of central pixel in each epoch??
 
         summary = fits_table()
@@ -2877,7 +2923,7 @@ def main():
         summary.cut(rtnvals == 0)
 
         summary.writeto(os.path.join(opt.outdir, 'summary.fits'))
-                
+
         sys.exit(0)
 
     if grid:
@@ -3007,4 +3053,3 @@ if __name__ == '__main__':
 # M49, 59, M60 (elliptical)
 # M63 (Sunflower galaxy)
 # M64 (Black eye galaxy)
-
