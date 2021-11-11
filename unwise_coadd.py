@@ -27,9 +27,7 @@ from astrometry.util.ttime import Time, MemMeas
 from astrometry.libkd.spherematch import match_radec
 
 import logging
-lvl = logging.DEBUG
-logging.basicConfig(level=lvl, format='%(message)s', stream=sys.stdout)
-logger = logging.getLogger('unwise_coadd')
+logger = None
 def info(*args):
     msg = ' '.join(map(str, args))
     logger.info(msg)
@@ -46,19 +44,33 @@ median_f = flat_median_f
 # Location of WISE Level 1b inputs
 wisedir = 'wise-frames'
 
-wisedirs = [wisedir, 'merge_p1bm_frm', 'neowiser-frames', 'neowiser2-frames',
-            'neowiser3-frames', 'neowiser4-frames', 'neowiser5-frames']
-
 '''
 at NERSC:
-ln -s /global/project/projectdirs/cosmo/work/wise/etc/etc_neo5 wise-frames
-ln -s /global/project/projectdirs/cosmo/data/wise/merge/merge_p1bm_frm/ .
-ln -s /global/project/projectdirs/cosmo/data/wise/neowiser/p1bm_frm/ neowiser-frames
-ln -s /global/project/projectdirs/cosmo/staging/wise/neowiser2/neowiser/p1bm_frm/ neowiser2-frames
-ln -s /global/projecta/projectdirs/cosmo/staging/wise/neowiser3/neowiser/p1bm_frm/ neowiser3-frames
-ln -s /global/project/projectdirs/cosmo/staging/wise/neowiser4/neowiser/p1bm_frm/ neowiser4-frames
-ln -s /global/project/projectdirs/cosmo/staging/wise/neowiser5/neowiser/p1bm_frm/ neowiser5-frames
+mkdir wise-frames-neo7
+for x in /global/cfs/cdirs/cosmo/work/wise/etc/etc_neo7/W*; do ln -s $x wise-frames-neo7/; done
+ln -s $COSMO/data/wise/merge/merge_p1bm_frm/wise_allsky_4band_p3as_cdd.fits wise-frames-neo7/
+ln -s wise-frames-neo7 wise-frames
+ln -s $COSMO/staging/wise/neowiser7/neowiser/p1bm_frm neowiser7-frames
+ln -s $COSMO/staging/wise/neowiser6/neowiser/p1bm_frm neowiser6-frames
+ln -s $COSMO/staging/wise/neowiser5/neowiser/p1bm_frm neowiser5-frames
+ln -s $COSMO/staging/wise/neowiser4/neowiser/p1bm_frm/ neowiser4-frames
+ln -s $COSMO/staging/wise/neowiser3/neowiser/p1bm_frm/ neowiser3-frames
+ln -s $COSMO/staging/wise/neowiser2/neowiser/p1bm_frm/ neowiser2-frames
+ln -s $COSMO/data/wise/neowiser/p1bm_frm/ neowiser-frames
+ln -s $COSMO/data/wise/merge/merge_p1bm_frm/ .
 '''
+
+wisedirs = [wisedir,
+            'merge_p1bm_frm',
+            'neowiser-frames',
+            'neowiser2-frames',
+            'neowiser3-frames',
+            'neowiser4-frames',
+            'neowiser5-frames',
+            'neowiser6-frames',
+            'neowiser7-frames',
+]
+# when adding a year, also see below in "The metadata files to read:"...
 
 
 mask_gz = True
@@ -237,6 +249,8 @@ def get_wise_frames(r0,r1,d0,d1, margin=2., bands=[1,2,3,4]):
                         (2, 'neowiser3'),
                         (2, 'neowiser4'),
                         (2, 'neowiser5'),
+                        (2, 'neowiser6'),
+                        (2, 'neowiser7'),
                         ]:
         # the bands in this dataset
         bb = [1,2,3,4][:nbands]
@@ -325,6 +339,7 @@ def get_epoch_breaks(mjds):
 
 def one_coadd(ti, band, W, H, frames,
               pixscale=2.75,
+              zoom=None,
               outdir='unwise-coadds',
               medfilt=None,
               do_dsky=False,
@@ -378,6 +393,14 @@ def one_coadd(ti, band, W, H, frames,
             return 0
 
     cowcs = get_coadd_tile_wcs(ti.ra, ti.dec, W, H, pixscale)
+    if zoom is not None:
+        (x0,x1,y0,y1) = zoom
+        W = x1-x0
+        H = y1-y0
+        zoomwcs = cowcs.get_subimage(x0, y0, W, H)
+        print('Zooming WCS from', cowcs, 'to', zoomwcs)
+        cowcs = zoomwcs
+
     # Intermediate world coordinates (IWC) polygon
     r,d = walk_wcs_boundary(cowcs, step=W, margin=10)
     ok,u,v = cowcs.radec2iwc(r,d)
@@ -391,9 +414,11 @@ def one_coadd(ti, band, W, H, frames,
               ) # in deg
     t0 = Time()
 
+    ra_center,dec_center = cowcs.radec_center()
+
     # cut
     frames = frames[frames.band == band]
-    frames.cut(degrees_between(ti.ra, ti.dec, frames.ra, frames.dec) < margin)
+    frames.cut(degrees_between(ra_center, dec_center, frames.ra, frames.dec) < margin)
     debug('Found', len(frames), 'WISE frames in range and in band W%i' % band)
 
     if before is not None:
@@ -425,7 +450,7 @@ def one_coadd(ti, band, W, H, frames,
 
     if bgmatch or center:
         # reorder by dist from center
-        frames.cut(np.argsort(degrees_between(ti.ra, ti.dec, frames.ra, frames.dec)))
+        frames.cut(np.argsort(degrees_between(ra_center, dec_center, frames.ra, frames.dec)))
     
     if ps and False:
         plt.clf()
@@ -524,13 +549,13 @@ def one_coadd(ti, band, W, H, frames,
 
     # *inclusive* coordinates of the bounding-box in the coadd of this
     # image (x0,x1,y0,y1)
-    frames.coextent = np.zeros((len(frames), 4), int)
+    frames.coextent = np.zeros((len(frames), 4), np.int32)
     # *inclusive* coordinates of the bounding-box in the image
     # overlapping coadd
-    frames.imextent = np.zeros((len(frames), 4), int)
+    frames.imextent = np.zeros((len(frames), 4), np.int32)
 
-    frames.imagew = np.zeros(len(frames), np.int)
-    frames.imageh = np.zeros(len(frames), np.int)
+    frames.imagew = np.zeros(len(frames), np.int32)
+    frames.imageh = np.zeros(len(frames), np.int32)
     frames.intfn  = np.zeros(len(frames), object)
     frames.wcs    = np.zeros(len(frames), object)
 
@@ -745,11 +770,8 @@ def one_coadd(ti, band, W, H, frames,
     coimb[coivb == 0] = coim[coivb == 0]
 
     # Plug the WCS header cards into the output coadd files.
-    f,wcsfn = tempfile.mkstemp()
-    os.close(f)
-    cowcs.write_to(wcsfn)
-    hdr = fitsio.read_header(wcsfn)
-    os.remove(wcsfn)
+    hdr = fitsio.FITSHDR()
+    cowcs.add_to_header(hdr)
 
     hdr.add_record(dict(name='MAGZP', value=22.5,
                         comment='Magnitude zeropoint (in Vega mag)'))
@@ -784,7 +806,7 @@ def one_coadd(ti, band, W, H, frames,
     fitsio.write(ofn, copp.astype(np.float32), header=hdr, clobber=True)
     debug('Wrote', ofn)
     ofn = prefix + '-n-u.fits'
-    fitsio.write(ofn, con.astype(np.int16), header=hdr, clobber=True)
+    fitsio.write(ofn, con.astype(np.int32), header=hdr, clobber=True)
     debug('Wrote', ofn)
 
     # "Masked" versions
@@ -798,7 +820,7 @@ def one_coadd(ti, band, W, H, frames,
     fitsio.write(ofn, coppb.astype(np.float32), header=hdr, clobber=True)
     debug('Wrote', ofn)
     ofn = prefix + '-n-m.fits'
-    fitsio.write(ofn, conb.astype(np.int16), header=hdr, clobber=True)
+    fitsio.write(ofn, conb.astype(np.int32), header=hdr, clobber=True)
     debug('Wrote', ofn)
 
     if do_cube:
@@ -1686,15 +1708,31 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                       (WISE.scan_id[ri], WISE.frame_num[ri], band))
             args.append((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
                          plotfn, ps1, do_dsky, rchi_fraction))
-        masks = mp2.map(_bounce_one_round2, args)
+        Nimgs = len(rimgs)
+        del rimgs
+
+        maskiter = mp2.imap(_bounce_one_round2, args)
         del args
-        debug('Accumulating second-round coadds...')
-        t0 = Time()
-        coadd = coaddacc(H, W, do_cube=do_cube, nims=len(rimgs), bgmatch=bgmatch,
+        info('Accumulating second-round coadds...')
+        coadd = coaddacc(H, W, do_cube=do_cube, nims=Nimgs, bgmatch=bgmatch,
                          minmax=minmax)
-        for mm in masks:
+        t0 = Time()
+        inext = 16
+        i = 0
+        masks = []
+        while True:
+            try:
+                mm = next(maskiter)
+            except StopIteration:
+                break
+            i += 1
+            masks.append(mm)
+            if mm is None:
+                continue
             coadd.acc(mm, delmm=delmm)
-        debug(Time()-t0)
+            if i == inext:
+                inext *= 2
+                info('Accumulated', i, 'of', Nimgs, ':', Time()-t0)
 
     coadd.finish()
 
@@ -2564,118 +2602,131 @@ def get_wise_frames_for_dataset(dataset, r0,r1,d0,d1,
     return WISE
 
 def main():
-    import optparse
+    import argparse
     from astrometry.util.multiproc import multiproc
 
-    parser = optparse.OptionParser('%prog [options]')
+    parser = argparse.ArgumentParser('%prog [options]')
 
-    parser.add_option('--threads', dest='threads', type=int, help='Multiproc',
+    parser.add_argument('--threads', dest='threads', type=int, help='Multiproc',
                       default=None)
-    parser.add_option('--threads1', dest='threads1', type=int, default=None,
+    parser.add_argument('--threads1', dest='threads1', type=int, default=None,
                       help='Multithreading during round 1')
 
-    parser.add_option('-w', dest='wishlist', action='store_true',
+    parser.add_argument('-w', dest='wishlist', action='store_true',
                       default=False, help='Print needed frames and exit?')
-    parser.add_option('--plots', dest='plots', action='store_true',
+    parser.add_argument('--plots', dest='plots', action='store_true',
                       default=False)
-    parser.add_option('--plots2', dest='plots2', action='store_true',
+    parser.add_argument('--plots2', dest='plots2', action='store_true',
                       default=False)
-    parser.add_option('--pdf', dest='pdf', action='store_true', default=False)
+    parser.add_argument('--pdf', dest='pdf', action='store_true', default=False)
 
-    parser.add_option('--plot-prefix', dest='plotprefix', default=None)
+    parser.add_argument('--plot-prefix', dest='plotprefix', default=None)
 
-    parser.add_option('--outdir', '-o', dest='outdir', default='unwise-coadds',
-                      help='Output directory: default %default')
+    parser.add_argument('--outdir', '-o', dest='outdir', default='unwise-coadds',
+                      help='Output directory: default %(default)s')
 
-    parser.add_option('--size', dest='size', default=2048, type=int,
-                      help='Set output image size in pixels; default %default')
-    parser.add_option('--width', dest='width', default=0, type=int,
+    parser.add_argument('--size', dest='size', default=2048, type=int,
+                      help='Set output image size in pixels; default %(default)s')
+    parser.add_argument('--width', dest='width', default=0, type=int,
                       help='Set output image width in pixels; default --size')
-    parser.add_option('--height', dest='height', default=0, type=int,
+    parser.add_argument('--height', dest='height', default=0, type=int,
                       help='Set output image height in pixels; default --size')
 
-    parser.add_option('--pixscale', dest='pixscale', type=float, default=2.75,
-                      help='Set coadd pixel scale, default %default arcsec/pixel')
-    parser.add_option('--cube', dest='cube', action='store_true',
+    parser.add_argument('--pixscale', dest='pixscale', type=float, default=2.75,
+                      help='Set coadd pixel scale, default %(default)s arcsec/pixel')
+    parser.add_argument('--cube', dest='cube', action='store_true',
                       default=False, help='Save & write out image cube')
-    parser.add_option('--cube1', dest='cube1', action='store_true',
+    parser.add_argument('--cube1', dest='cube1', action='store_true',
                       default=False, help='Save & write out image cube for round 1')
 
-    parser.add_option('--frame0', dest='frame0', default=0, type=int,
+    parser.add_argument('--frame0', dest='frame0', default=0, type=int,
                       help='Only use a subset of the frames: starting with frame0')
-    parser.add_option('--nframes', dest='nframes', default=0, type=int,
+    parser.add_argument('--nframes', dest='nframes', default=0, type=int,
                       help='Only use a subset of the frames: number nframes')
-    parser.add_option('--nframes-random', dest='nframes_random', default=0, type=int,
+    parser.add_argument('--nframes-random', dest='nframes_random', default=0, type=int,
                       help='Only use a RANDOM subset of the frames: number nframes')
 
-    parser.add_option('--medfilt', dest='medfilt', type=int, default=None,
+    parser.add_argument('--medfilt', dest='medfilt', type=int, default=None,
                       help=('Median filter with a box twice this size (+1),'+
                             ' to remove varying background.  Default: none for W1,W2; 50 for W3,W4.'))
 
-    parser.add_option('--force', dest='force', action='store_true',
+    parser.add_argument('--force', dest='force', action='store_true',
                       default=False, 
                       help='Run even if output file already exists?')
 
-    parser.add_option('--maxmem', dest='maxmem', type=float, default=0,
+    parser.add_argument('--maxmem', dest='maxmem', type=float, default=0,
                       help='Quit if predicted memory usage > n GB')
 
-    parser.add_option('--dsky', dest='dsky', action='store_true',
+    parser.add_argument('--dsky', dest='dsky', action='store_true',
                       default=False,
                       help='Do background-matching by matching medians '
                       '(to first-round coadd)')
 
-    parser.add_option('--bgmatch', dest='bgmatch', action='store_true',
+    parser.add_argument('--bgmatch', dest='bgmatch', action='store_true',
                       default=False,
                       help='Do background-matching by matching medians '
                       '(when accumulating first-round coadd)')
 
-    parser.add_option('--center', dest='center', action='store_true',
+    parser.add_argument('--center', dest='center', action='store_true',
                       default=False,
                       help='Read frames in order of distance from center; for debugging.')
 
-    parser.add_option('--minmax', action='store_true',
+    parser.add_argument('--minmax', action='store_true',
                       help='Record the minimum and maximum values encountered during coadd?')
 
-    parser.add_option('--ra', dest='ra', type=float, default=None,
+    parser.add_argument('--ra', dest='ra', type=float, default=None,
                       help='Build coadd at given RA center')
-    parser.add_option('--dec', dest='dec', type=float, default=None,
+    parser.add_argument('--dec', dest='dec', type=float, default=None,
                       help='Build coadd at given Dec center')
-    parser.add_option('--band', type=int, default=None, action='append',
+    parser.add_argument('--band', type=int, default=None, action='append',
                       help='with --ra,--dec: band(s) to do (1,2,3,4)')
 
-    parser.add_option('--name', default=None,
+    parser.add_argument('--zoom', type=int, nargs=4,
+                        help='Set target image extent (default "0 2048 0 2048")')
+    parser.add_argument('--grid', type=int, nargs='?', default=0, const=2048,
+                        help='Grid this (large custom) image into pieces of this size.')
+
+    parser.add_argument('--name', default=None,
                       help='Output file name: unwise-NAME-w?-*.fits')
 
-    parser.add_option('--tile', dest='tile', type=str, default=None,
+    parser.add_argument('--tile', dest='tile', type=str, default=None,
                       help='Run a single tile, eg, 0832p196')
 
-    parser.add_option('--preprocess', dest='preprocess', action='store_true',
+    parser.add_argument('--preprocess', dest='preprocess', action='store_true',
                       default=False, help='Preprocess (write *-atlas, *-frames.fits) only')
 
-    parser.add_option('--rchi-fraction', dest='rchi_fraction', type=float,
+    parser.add_argument('--rchi-fraction', dest='rchi_fraction', type=float,
                       default=0.01, help='Fraction of outlier pixels to reject frame')
 
-    parser.add_option('--epoch', type=int, help='Keep only input frames in the given epoch, zero-indexed')
+    parser.add_argument('--epoch', type=int, help='Keep only input frames in the given epoch, zero-indexed')
 
-    parser.add_option('--before', type=float, help='Keep only input frames before the given MJD')
-    parser.add_option('--after',  type=float, help='Keep only input frames after the given MJD')
+    parser.add_argument('--before', type=float, help='Keep only input frames before the given MJD')
+    parser.add_argument('--after',  type=float, help='Keep only input frames after the given MJD')
 
-    parser.add_option('--ascending', default=False, action='store_true',
-                      help='Keep only ascending scans')
-    parser.add_option('--descending', default=False, action='store_true',
-                      help='Keep only descending scans')
+    parser.add_argument('--ascending', default=False, action='store_true',
+                        help='Keep only ascending scans')
+    parser.add_argument('--descending', default=False, action='store_true',
+                        help='Keep only descending scans')
 
-    parser.add_option('--no-download', dest='download', default=True, action='store_false',
+    parser.add_argument('--no-download', dest='download', default=True, action='store_false',
                       help='Do not download data from IRSA, assume it is already on disk')
 
-    parser.add_option('--cache-frames', help='For custom --ra,--dec coadds, cache the overlapping frames in this file.')
+    parser.add_argument('--cache-frames', help='For custom --ra,--dec coadds, cache the overlapping frames in this file.')
 
-    parser.add_option('--period', type=float, help='Build a series of coadds separated by this period, in days.')
+    parser.add_argument('--period', type=float, help='Build a series of coadds separated by this period, in days.')
 
-    opt,args = parser.parse_args()
-    if len(args):
-        print('Extra arguments supplied:', args)
-        return -1
+    parser.add_argument('-v', '--verbose', dest='verbose', action='count',
+                        default=0, help='Make more verbose')
+
+    opt = parser.parse_args()
+
+    if opt.verbose == 0:
+        lvl = logging.INFO
+    else:
+        lvl = logging.DEBUG
+    logging.basicConfig(level=lvl, format='%(message)s', stream=sys.stdout)
+    global logger
+    logger = logging.getLogger('unwise_coadd')
 
     if opt.threads:
         mp2 = multiproc(opt.threads)
@@ -2694,9 +2745,8 @@ def main():
         return -1
 
     print('unwise_coadd.py starting: args:', sys.argv)
-
-    print('opt:', opt)
-    print(dir(opt))
+    #print('opt:', opt)
+    #print(dir(opt))
 
     Time.add_measurement(MemMeas)
 
@@ -2788,6 +2838,7 @@ def main():
         ps = None
 
     period = opt.period
+    grid = opt.grid
 
     kwargs = vars(opt)
     print('kwargs:', kwargs)
@@ -2802,7 +2853,8 @@ def main():
         kwargs.update({ to: kwargs.pop(fr) })
     for key in ['threads', 'threads1', 'plots', 'pdf', 'plotprefix',
                 'size', 'width', 'height', 'ra', 'dec', 'band', 'name',
-                'tile', 'preprocess', 'cache_frames', 'period']:
+                'tile', 'preprocess', 'cache_frames', 'period', 'grid',
+                'verbose']:
         kwargs.pop(key)
 
     if period:
@@ -2874,6 +2926,85 @@ def main():
 
         sys.exit(0)
 
+    if grid:
+        orig_name = tile.coadd_id
+        nw = int(np.ceil(W / float(grid)))
+        nh = int(np.ceil(H / float(grid)))
+        cowcs = get_coadd_tile_wcs(tile.ra, tile.dec, W, H, opt.pixscale)
+        for band in bands:
+            for y in range(nh):
+                for x in range(nw):
+                    t0 = Time()
+                    tile.coadd_id = orig_name + '_grid_%i_%i' % (x, y)
+                    print('Doing coadd grid tile', tile.coadd_id, 'band', band, 'x,y', x,y)
+                    kwcopy = kwargs.copy()
+                    kwcopy['zoom'] = (x*grid, min((x+1)*grid, W),
+                                      y*grid, min((y+1)*grid, H))
+                    kwcopy.update(ps=ps, mp1=mp1, mp2=mp2)
+                    if one_coadd(tile, band, W, H, WISE, **kwcopy):
+                        return -1
+                    print('Grid tile', tile.coadd_id, 'band', band, 'x,y', x,y, ':', Time()-t0)
+            frames = []
+            for suffix in ['-img-m.fits', '-invvar-m.fits', '-std-m.fits', '-n-m.fits',
+                           '-img-u.fits', '-invvar-u.fits', '-std-u.fits', '-n-u.fits',
+                           '-frames.fits']:
+                dtype = np.float32
+                if '-n-' in suffix:
+                    dtype = np.int32
+                elif 'frames' in suffix:
+                    dtype = None
+
+                if dtype is not None:
+                    hdr = fitsio.FITSHDR()
+                    hdr.add_record(dict(name='UNW_GRID', value=grid, comment='Grid size for sub-coadds'))
+                    cowcs.add_to_header(hdr)
+                    img = np.zeros((H,W), dtype)
+                for y in range(nh):
+                    for x in range(nw):
+                        coadd_id = orig_name + '_grid_%i_%i' % (x, y)
+                        tag = 'unwise-%s-w%i' % (coadd_id, band)
+                        indir = opt.outdir
+                        indir = get_dir_for_coadd(indir, coadd_id)
+                        prefix = os.path.join(indir, tag)
+                        fn = prefix + suffix
+                        print('Reading', fn)
+                        if dtype is not None:
+                            gimg,ghdr = fitsio.read(fn, header=True)
+                            #if x == 0 and y == 0:
+                            #    hdr = ghdr
+                            img[y*grid : min((y+1)*grid, H),
+                                x*grid : min((x+1)*grid, W)] = gimg
+                            del gimg
+                            for r in ghdr.records():
+                                key = r['name']
+                                if key == 'UNW_SKY':
+                                    hdr.add_record(dict(name='UNSK%i_%i' % (x,y),
+                                                        value=r['value'],
+                                                        comment='UNW_SKY (subtracted) from tile %i,%i' % (x,y)))
+                                elif key == 'MAGZP' or key.startswith('UNW_'):
+                                    hdr.add_record(r)
+                        else:
+                            gf = fits_table(fn)
+                            gf.grid_x = np.zeros(len(gf), np.int16) + x
+                            gf.grid_y = np.zeros(len(gf), np.int16) + y
+                            frames.append(gf)
+                tag = 'unwise-%s-w%i' % (orig_name, band)
+                outdir = opt.outdir
+                outdir = get_dir_for_coadd(outdir, orig_name)
+                prefix = os.path.join(outdir, tag)
+                fn = prefix + suffix
+                print('Writing', fn)
+                if dtype is not None:
+                    fitsio.write(fn, img, clobber=True, header=hdr)
+                    del img
+                else:
+                    frames = merge_tables(frames)
+                    frames.writeto(fn)
+                    del frames
+
+        #tile.coadd_id = orig_name
+        sys.exit(0)
+        
     for band in bands:
         print('Doing coadd tile', tile.coadd_id, 'band', band)
         t0 = Time()
@@ -2893,7 +3024,7 @@ def main():
     return 0
 
 def bounce_one_epoch(X):
-    dirnm, args,kwargs = X
+    dirnm, args, kwargs = X
     rtn = one_coadd(*args, **kwargs)
     print('Finished', dirnm, 'with return value', rtn)
     return rtn
