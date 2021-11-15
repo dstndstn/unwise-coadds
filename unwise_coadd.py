@@ -601,7 +601,7 @@ def one_coadd(ti, band, W, H, frames,
                 hdr = fitsio.read_header(intfn)
                 events = hdr['INEVENTS']
                 events = events.split()
-                print('Frame', wise.scan_id, wise.frame_num, band, 'events:', events)
+                #print('Frame', wise.scan_id, wise.frame_num, band, 'events:', events)
                 if 'ASCE' in events:
                     frames.ascending[wi] = True
                 if 'DESC' in events:
