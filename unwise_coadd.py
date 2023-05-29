@@ -311,7 +311,7 @@ def get_wise_frames(racen, deccen, band, margin=1.7):
     for nbands,name in [(4,'4band'), (3,'3band'), (2,'2band'), (2,'neowiser'),
                         (2, 'neowiser2'), (2, 'neowiser3'), (2, 'neowiser4'),
                         (2, 'neowiser5'), (2, 'neowiser6'), (2, 'neowiser7'),
-                        (2, 'neowiser8')]:
+                        (2, 'neowiser8'), (2, 'neowiser9')]:
         fn = os.path.join(metadir, 'WISE-l1b-metadata-%s.fits' % name)
         print 'Reading', fn
         bb = [1,2,3,4][:nbands]
