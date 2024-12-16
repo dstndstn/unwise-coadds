@@ -2351,6 +2351,19 @@ def extract_round2_outputs(coadd, tinyw):
     coppstd  /= np.sqrt(np.maximum(1., (con  - 1).astype(float)))
     coppstdb /= np.sqrt(np.maximum(1., (conb - 1).astype(float)))
 
+    #### HACK ####
+    if 0:
+        fitsio.write('coimgsq.fits', coimgsq)
+        fitsio.write('cow.fits', cow)
+        fitsio.write('coimg.fits', coimg)
+        fitsio.write('con.fits', con)
+
+        fitsio.write('coimgsqb.fits', coimgsqb)
+        fitsio.write('cowb.fits', cowb)
+        fitsio.write('coimgb.fits', coimgb)
+        fitsio.write('conb.fits', conb)
+    ##############
+
     return (coimg,  coinvvar,  coppstd,  con, coimgb, 
             coinvvarb, coppstdb, conb, cube)
 
