@@ -11,6 +11,7 @@ import sys
 import tempfile
 import datetime
 import gc
+from functools import reduce
 from scipy.ndimage.morphology import binary_dilation
 from scipy.ndimage.measurements import label
 from zp_lookup import ZPLookUp
@@ -21,30 +22,26 @@ from hi_lo import HiLo
 
 import fitsio
 
-arrayblock = 20000
-
-if __name__ == '__main__':
-    arr = os.environ.get('PBS_ARRAYID')
-    d = os.environ.get('PBS_O_WORKDIR')
-    if arr is not None and d is not None:
-        os.chdir(d)
-        sys.path.append(os.getcwd())
-
-from astrometry.util.file import *
-from astrometry.util.fits import *
-from astrometry.util.multiproc import *
-from astrometry.util.plotutils import *
-from astrometry.util.miscutils import *
-from astrometry.util.util import *
-from astrometry.util.resample import *
-from astrometry.util.run_command import *
-from astrometry.util.starutil_numpy import *
-from astrometry.util.ttime import *
-from astrometry.libkd.spherematch import *
+from astrometry.util.file import trymakedirs
+from astrometry.util.fits import fits_table, merge_tables
+from astrometry.util.miscutils import estimate_mode, polygons_intersect, clip_polygon, patch_image
+from astrometry.util.util import Tan, Sip, flat_median_f
+from astrometry.util.resample import resample_with_wcs, OverlapError
+from astrometry.util.run_command import run_command
+from astrometry.util.starutil_numpy import degrees_between
+from astrometry.util.ttime import Time, MemMeas
+from astrometry.libkd.spherematch import match_radec
 
 import logging
-lvl = logging.INFO
-logging.basicConfig(level=lvl, format='%(message)s', stream=sys.stdout)
+logger = None
+def info(*args):
+    msg = ' '.join(map(str, args))
+    logger.info(msg)
+def debug(*args):
+    import logging
+    if logger.isEnabledFor(logging.DEBUG):
+        msg = ' '.join(map(str, args))
+        logger.debug(msg)
 
 #median_f = np.median
 median_f = flat_median_f
@@ -241,10 +238,13 @@ def in_radec_box(ra,dec, r0,r1,d0,d1, margin):
         return ((dec + margin >= d0) * (dec - margin <= d1))
         
     cosdec = np.cos(np.deg2rad(max(abs(d0),abs(d1))))
-    print 'cosdec:', cosdec
+    debug('cosdec:', cosdec)
     # wrap-around... time to switch to unit-sphere instead?
     # Still issues near the Dec poles (if margin/cosdec -> 360)
-    if (r0 - margin/cosdec < 0) or (r1 + margin/cosdec > 360):
+    ## HACK: 89 degrees -> cosdec 0.017
+    if cosdec < 0.02:
+        return ((dec + margin >= d0) * (dec - margin <= d1))
+    elif (r0 - margin/cosdec < 0) or (r1 + margin/cosdec > 360):
         # python mod: result has same sign as second arg
         rlowrap = (r0 - margin/cosdec) % 360.0
         rhiwrap = (r1 + margin/cosdec) % 360.0
@@ -258,8 +258,8 @@ def in_radec_box(ra,dec, r0,r1,d0,d1, margin):
             raB = 360.0
             raC = 0.
             raD = rlowrap
-        print 'RA wrap-around:', r0,r1, '+ margin', margin, '->', rlowrap, rhiwrap
-        print 'Looking at ranges (%.2f, %.2f) and (%.2f, %.2f)' % (raA,raB,raC,raD)
+        debug('RA wrap-around:', r0,r1, '+ margin', margin, '->', rlowrap, rhiwrap)
+        debug('Looking at ranges (%.2f, %.2f) and (%.2f, %.2f)' % (raA,raB,raC,raD))
         assert(raA <= raB)
         assert(raC <= raD)
         return (np.logical_or((ra >= raA) * (ra <= raB),
@@ -307,7 +307,7 @@ def get_wise_frames(racen, deccen, band, margin=1.7):
 
     # 4-band, 3-band, or 2-band phase
     WISE.phase = np.zeros(len(WISE), np.uint8)
-    
+
     for nbands,name in [(4,'4band'), (3,'3band'), (2,'2band'), (2,'neowiser'),
                         (2, 'neowiser2'), (2, 'neowiser3'), (2, 'neowiser4'),
                         (2, 'neowiser5'), (2, 'neowiser6'), (2, 'neowiser7'),
@@ -316,6 +316,16 @@ def get_wise_frames(racen, deccen, band, margin=1.7):
         fn = os.path.join(metadir, 'WISE-l1b-metadata-%s.fits' % name)
         print 'Reading', fn
         bb = [1,2,3,4][:nbands]
+
+        if not any([b in bands for b in bb]):
+            # no bands of interest in this observation phase - skip
+            continue
+
+        fn = os.path.join(wisedir, 'WISE-l1b-metadata-%s.fits' % name)
+        if not os.path.exists(fn):
+            print('WARNING: ignoring missing', fn)
+            continue
+        print('Reading', fn)
         cols = (['ra', 'dec', 'scan_id', 'frame_num',
                  'qual_frame', 'planets', 'nearby_planets', 'moon_masked', ] +
                 ['w%iintmed16ptile' % b for b in bb] +
@@ -324,7 +334,7 @@ def get_wise_frames(racen, deccen, band, margin=1.7):
         if nbands > 2:
             cols.append('dtanneal')
         T = fits_table(fn, columns=cols)
-        print 'Read', len(T), 'from', fn
+        debug('Read', len(T), 'from', fn)
         # Cut with extra large margins
         T.cut(is_nearby(T.ra, T.dec, racen, deccen, 2.*margin, fast=True))
         print 'Cut to', len(T), 'near RA,Dec box'
@@ -335,20 +345,20 @@ def get_wise_frames(racen, deccen, band, margin=1.7):
             T.dtanneal = np.zeros(len(T), np.float64) + 1000000.
             
         I,J,d = match_radec(WISE.ra, WISE.dec, T.ra, T.dec, 60./3600.)
-        print 'Matched', len(I)
+        debug('Matched', len(I))
 
-        print 'WISE-index-L1b scan_id:', WISE.scan_id.dtype, 'frame_num:', WISE.frame_num.dtype
-        print 'WISE-metadata scan_id:', T.scan_id.dtype, 'frame_num:', T.frame_num.dtype
+        debug('WISE-index-L1b scan_id:', WISE.scan_id.dtype, 'frame_num:', WISE.frame_num.dtype)
+        debug('WISE-metadata scan_id:', T.scan_id.dtype, 'frame_num:', T.frame_num.dtype)
 
         K = np.flatnonzero((WISE.scan_id  [I] == T.scan_id  [J]) *
                            (WISE.frame_num[I] == T.frame_num[J]))
         I = I[K]
         J = J[K]
-        print 'Cut to', len(I), 'matching scan/frame'
+        debug('Cut to', len(I), 'matching scan/frame')
 
         for band in bb:
             K = (WISE.band[I] == band)
-            print 'Band', band, ':', sum(K)
+            debug('Band', band, ':', sum(K))
             if sum(K) == 0:
                 continue
             II = I[K]
@@ -366,7 +376,7 @@ def get_wise_frames(racen, deccen, band, margin=1.7):
             WISE.planets[II] = T.planets[JJ]
             WISE.nearby_planets[II] = T.nearby_planets[JJ]
 
-    print np.sum(WISE.matched), 'of', len(WISE), 'matched to metadata tables'
+    debug(np.sum(WISE.matched), 'of', len(WISE), 'matched to metadata tables')
     assert(np.sum(WISE.matched) == len(WISE))
     WISE.delete_column('matched')
     # Reorder by scan, frame, band
@@ -849,9 +859,15 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     '''
     Create coadd for one tile & band.
     '''
-    print 'Coadd tile', ti.coadd_id
-    print 'RA,Dec', ti.ra, ti.dec
-    print 'Band', band
+    debug('Coadd tile', ti.coadd_id)
+    debug('RA,Dec', ti.ra, ti.dec)
+    debug('Band', band)
+
+    from astrometry.util.multiproc import multiproc
+    if mp1 is None:
+        mp1 = multiproc()
+    if mp2 is None:
+        mp2 = multiproc()
 
     wisepixscale = 2.75
 
@@ -862,23 +878,29 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
 
     if not force_outdir:
         outdir = get_dir_for_coadd(outdir, ti.coadd_id)
-        if not os.path.exists(outdir):
-            print 'mkdir', outdir
-            os.makedirs(outdir)
+    trymakedirs(outdir)
     tag = 'unwise-%s-w%i' % (ti.coadd_id, band)
     prefix = os.path.join(outdir, tag)
     ofn = prefix + '-img-m.fits'
     if os.path.exists(ofn):
-        print 'Output file exists:', ofn
+        print('Output file exists:', ofn)
         if not force:
             return 0
 
     cowcs = get_coadd_tile_wcs(ti.ra, ti.dec, W, H, pixscale)
+    if zoom is not None:
+        (x0,x1,y0,y1) = zoom
+        W = x1-x0
+        H = y1-y0
+        zoomwcs = cowcs.get_subimage(x0, y0, W, H)
+        print('Zooming WCS from', cowcs, 'to', zoomwcs)
+        cowcs = zoomwcs
+
     # Intermediate world coordinates (IWC) polygon
     r,d = walk_wcs_boundary(cowcs, step=W, margin=10)
     ok,u,v = cowcs.radec2iwc(r,d)
-    copoly = np.array(list(reversed(zip(u,v))))
-    print 'Coadd IWC polygon:', copoly
+    copoly = np.array(list(reversed(list(zip(u,v)))))
+    #print('Coadd IWC polygon:', copoly)
 
     margin = (1.1 # safety margin
               * (np.sqrt(2.) / 2.) # diagonal
@@ -887,20 +909,29 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
               ) # in deg
     t0 = Time()
 
+    ra_center,dec_center = cowcs.radec_center()
+
     # cut
-    WISE = WISE[WISE.band == band]
-    WISE.cut(degrees_between(ti.ra, ti.dec, WISE.ra, WISE.dec) < margin)
-    print 'Found', len(WISE), 'WISE frames in range and in band W%i' % band
+    frames = frames[frames.band == band]
+    frames.cut(degrees_between(ra_center, dec_center, frames.ra, frames.dec) < margin)
+    debug('Found', len(frames), 'WISE frames in range and in band W%i' % band)
+
+    if before is not None:
+        frames.cut(frames.mjd < before)
+        debug('Cut to', len(frames), 'frames before MJD', before)
+    if after is not None:
+        frames.cut(frames.mjd > after)
+        debug('Cut to', len(frames), 'frames after MJD', after)
 
     # Cut on IWC box
-    ok,u,v = cowcs.radec2iwc(WISE.ra, WISE.dec)
+    ok,u,v = cowcs.radec2iwc(frames.ra, frames.dec)
     u0,v0 = copoly.min(axis=0)
     u1,v1 = copoly.max(axis=0)
     #print 'Coadd IWC range:', u0,u1, v0,v1
     margin = np.sqrt(2.) * (1016./2.) * (wisepixscale/3600.) * 1.01 # safety
-    WISE.cut((u + margin >= u0) * (u - margin <= u1) *
+    frames.cut((u + margin >= u0) * (u - margin <= u1) *
              (v + margin >= v0) * (v - margin <= v1))
-    print 'cut to', len(WISE), 'in RA,Dec box'
+    debug('cut to', len(frames), 'in RA,Dec box')
 
     # Use a subset of frames?
     if not compare_moon_all:
@@ -908,7 +939,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
 
     if bgmatch or center:
         # reorder by dist from center
-        WISE.cut(np.argsort(degrees_between(ti.ra, ti.dec, WISE.ra, WISE.dec)))
+        frames.cut(np.argsort(degrees_between(ra_center, dec_center, frames.ra, frames.dec)))
     
     if ps and False:
         plt.clf()
@@ -919,7 +950,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         plt.axvline(u1 + margin, color='k')
         plt.axhline(v0 - margin, color='k')
         plt.axhline(v1 + margin, color='k')
-        ok,u2,v2 = cowcs.radec2iwc(WISE.ra, WISE.dec)
+        ok,u2,v2 = cowcs.radec2iwc(frames.ra, frames.dec)
         plt.plot(u2, v2, 'go')
         ps.savefig()
         
@@ -940,14 +971,18 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         print 'Cut out nearby planets != 0;', sum(WISE.use), 'remaining'
 
     if band in [3,4]:
-        WISE.use *= (WISE.dtanneal > 2000.)
-        print 'Cut out dtanneal <= 2000 seconds:', sum(WISE.use), 'remaining'
+        frames.use *= (frames.dtanneal > 2000.)
+        debug('Cut out dtanneal <= 2000 seconds:', sum(frames.use), 'remaining')
 
     if band == 4:
         ok = np.array([np.logical_or(s < '03752a', s > '03761b')
-                       for s in WISE.scan_id])
-        WISE.use *= ok
-        print 'Cut out bad scans in W4:', sum(WISE.use), 'remaining'
+                       for s in frames.scan_id])
+        frames.use *= ok
+        debug('Cut out bad scans in W4:', sum(frames.use), 'remaining')
+
+    # Cut ones where the w?intmedian is NaN
+    frames.use *= np.isfinite(frames.intmedian)
+    debug('Cut out intmedian non-finite:', sum(frames.use), 'remaining')
 
     # this will need to be adapted/modified for the time-resolved coadds...
     # Cut on moon, based on (robust) measure of standard deviation
@@ -987,11 +1022,21 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     if frame0 or nframes:
         i0 = frame0
         if nframes:
-            WISE = WISE[frame0:frame0 + nframes]
+            frames = frames[frame0:frame0 + nframes]
+        elif nframes_random:
+            frames = frames[frame0 + np.random.permutation(len(frames)-frame0)[:nframes_random]]
         else:
-            WISE = WISE[frame0:]
-        print 'Cut to', len(WISE), 'frames starting from index', frame0
+            frames = frames[frame0:]
+        debug('Cut to', len(frames), 'frames starting from index', frame0)
         
+    debug('Frames to coadd:')
+    for i,w in enumerate(frames):
+        debug('  ', i, w.scan_id, '%4i' % w.frame_num, 'MJD', w.mjd)
+
+    if len(frames) == 0:
+        info('No frames overlap position x time')
+        return -1
+
     if wishlist:
         for wise in WISE:
             intfn = get_l1b_file(wisedir, wise.scan_id, wise.frame_num, band, int_gz=int_gz)
@@ -1001,10 +1046,10 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
 
     # Estimate memory usage and bail out if too high.
     if maxmem:
-        mem = 1. + (len(WISE) * 1e6/2. * 5. / 1e9)
-        print 'Estimated mem usage:', mem
+        mem = 1. + (len(frames) * 1e6/2. * 5. / 1e9)
+        print('Estimated mem usage:', mem)
         if mem > maxmem:
-            print 'Estimated memory usage:', mem, 'GB > max', maxmem
+            print('Estimated memory usage:', mem, 'GB > max', maxmem)
             return -1
 
     # *inclusive* coordinates of the bounding-box in the coadd of this
@@ -1023,31 +1068,30 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     WISE.imextent_q3 = np.zeros((len(WISE), 4), int)
     WISE.imextent_q4 = np.zeros((len(WISE), 4), int)
 
-    WISE.imagew = np.zeros(len(WISE), np.int)
-    WISE.imageh = np.zeros(len(WISE), np.int)
-    WISE.intfn  = np.zeros(len(WISE), object)
-    WISE.wcs    = np.zeros(len(WISE), object)
+    frames.imagew = np.zeros(len(frames), np.int32)
+    frames.imageh = np.zeros(len(frames), np.int32)
+    frames.intfn  = np.zeros(len(frames), object)
+    frames.wcs    = np.zeros(len(frames), object)
 
     # count total number of coadd-space pixels -- this determines memory use
     pixinrange = 0.
 
     wdirs = get_l1b_dirs(yml=True, verbose=True)
     nu = 0
-    NU = sum(WISE.use)
-    for wi,wise in enumerate(WISE):
+    NU = sum(frames.use)
+    failedfiles = []
+    for wi,wise in enumerate(frames):
         if not wise.use:
             continue
-        print
         nu += 1
-        print nu, 'of', NU
-        print 'scan', wise.scan_id, 'frame', wise.frame_num, 'band', band
+        debug(nu, 'of', NU, 'scan', wise.scan_id, 'frame', wise.frame_num, 'band', band)
 
         found = False
         _phase = phase_from_scanid(wise.scan_id)
         for wdir in [wdirs[_phase], wdirs['missing']] + [None]:
             download = False
             if wdir is None:
-                download = True
+                download = allow_download
                 wdir = 'merge_p1bm_frm'
 
             intfn = get_l1b_file(wdir, wise.scan_id, wise.frame_num, band, int_gz=int_gz)
@@ -1075,13 +1119,14 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                     traceback.print_exc()
                     continue
             else:
+                debug('does not exist:', intfn)
                 continue
             if (os.path.exists(intfn.replace('-int-', '-unc-') + ('.gz' if not int_gz else '')) and
                 os.path.exists(intfn.replace('-int-', '-msk-') + ('.gz' if not int_gz else ''))):
                 found = True
                 break
             else:
-                print 'missing unc or msk file'
+                print('missing unc or msk file')
                 continue
         if not found:
             WISE.use[wi] = False
@@ -1101,18 +1146,26 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     # Now we can make a more informed estimate of memory use.
     if maxmem:
         mem = 1. + (pixinrange * 5. / 1e9)
-        print 'Estimated mem usage:', mem
+        print('Estimated mem usage:', mem)
         if mem > maxmem:
-            print 'Estimated memory usage:', mem, 'GB > max', maxmem
+            print('Estimated memory usage:', mem, 'GB > max', maxmem)
             return -1
 
     # convert from object array to string array; '' rather than '0'
-    WISE.intfn = np.array([{0:''}.get(s,s) for s in WISE.intfn])
-    print 'Cut to', sum(WISE.use), 'frames intersecting target'
+    frames.intfn = np.array([{0:''}.get(s,s) for s in frames.intfn])
+    debug('Cut to', sum(frames.use), 'frames intersecting target')
 
     t1 = Time()
-    print 'Up to coadd_wise:'
-    print t1 - t0
+    debug('Up to coadd_wise:', t1 - t0)
+
+    debug('Frames to coadd after cuts:')
+    ii = np.argsort(frames.mjd)
+    for i in ii:
+        w = frames[i]
+        if not w.use:
+            continue
+        debug('  ', w.scan_id, '%4i' % w.frame_num, 'MJD', w.mjd,
+              'ASC', w.ascending, 'DESC', w.descending, 'RA,Dec %.4f, %.4f' % (w.ra, w.dec))
 
     # construct metadata table of frames we'll try to recover
     recover = None
@@ -1132,16 +1185,15 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                        rchi_fraction=rchi_fraction, do_cube1=do_cube1, recover=recover, do_rebin=do_rebin,
                        warp_all=warp_all, reference_dir=reference_dir, hi_lo_rej=hi_lo_rej)
     except:
-        print 'coadd_wise failed:'
+        print('coadd_wise failed:')
         import traceback
         traceback.print_exc()
-        print 'time up to failure:'
+        print('time up to failure:')
         t2 = Time()
-        print t2 - t1
-        return
+        print(t2 - t1)
+        return -1
     t2 = Time()
-    print 'coadd_wise:'
-    print t2 - t1
+    debug('coadd_wise:', t2-t1)
 
     # For any "masked" pixels that have invvar = 0 (ie, NO pixels
     # contributed), fill in the image from the "unmasked" image.
@@ -1152,11 +1204,8 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         coimb[con == 0] = 0
 
     # Plug the WCS header cards into the output coadd files.
-    f,wcsfn = tempfile.mkstemp()
-    os.close(f)
-    cowcs.write_to(wcsfn)
-    hdr = fitsio.read_header(wcsfn)
-    os.remove(wcsfn)
+    hdr = fitsio.FITSHDR()
+    cowcs.add_to_header(hdr)
 
     hdr.add_record(dict(name='MAGZP', value=22.5,
                         comment='Magnitude zeropoint (in Vega mag)'))
@@ -1172,6 +1221,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                         comment='unWISE run time'))
     hdr.add_record(dict(name='UNW_FR0', value=frame0, comment='unWISE frame start'))
     hdr.add_record(dict(name='UNW_FRN', value=nframes, comment='unWISE N frames'))
+    hdr.add_record(dict(name='UNW_FRNR', value=nframes_random, comment='unWISE N random frames'))
     hdr.add_record(dict(name='UNW_MEDF', value=medfilt, comment='unWISE median filter sz'))
     hdr.add_record(dict(name='UNW_BGMA', value=bgmatch, comment='unWISE background matching?'))
 
@@ -1279,16 +1329,16 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     if minmax:
         ofn = prefix + '-min-m.fits'
         fitsio.write(ofn, cominb.astype(np.float32), header=hdr, clobber=True)
-        print 'Wrote', ofn
+        debug('Wrote', ofn)
         ofn = prefix + '-max-m.fits'
         fitsio.write(ofn, comaxb.astype(np.float32), header=hdr, clobber=True)
-        print 'Wrote', ofn
+        debug('Wrote', ofn)
         ofn = prefix + '-min-u.fits'
         fitsio.write(ofn, comin.astype(np.float32), header=hdr, clobber=True)
-        print 'Wrote', ofn
+        debug('Wrote', ofn)
         ofn = prefix + '-max-u.fits'
         fitsio.write(ofn, comax.astype(np.float32), header=hdr, clobber=True)
-        print 'Wrote', ofn
+        debug('Wrote', ofn)
 
     ofn = prefix + '-frames.fits'
 
@@ -1320,7 +1370,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
             print >>sys.stderr, err
             ok = False
 
-    return 0
+    return rtn
 
 def plot_region(r0,r1,d0,d1, ps, T, WISE, wcsfns, W, H, pixscale, margin=1.05,
                 allsky=False, grid_ra_range=None, grid_dec_range=None,
@@ -1352,7 +1402,7 @@ def plot_region(r0,r1,d0,d1, ps, T, WISE, wcsfns, W, H, pixscale, margin=1.05,
         if i == 0:
             if T is None:
                 continue
-            print 'plot 0'
+            print('plot 0')
             for i,ti in enumerate(T):
                 cowcs = get_coadd_tile_wcs(ti.ra, ti.dec, W, H, pixscale)
                 plot.alpha = 0.5
@@ -1370,24 +1420,24 @@ def plot_region(r0,r1,d0,d1, ps, T, WISE, wcsfns, W, H, pixscale, margin=1.05,
         elif i == 1:
             if WISE is None:
                 continue
-            print 'plot 1'
+            print('plot 1')
             # cut
             #WISE = WISE[WISE.band == band]
             plot.alpha = (3./256.)
             out.fill = 1
-            print 'Plotting', len(WISE), 'exposures'
+            print('Plotting', len(WISE), 'exposures')
             wcsparams = []
             fns = []
             for wi,wise in enumerate(WISE):
                 if wi % 10 == 0:
-                    print '.',
+                    print('.', end=' ')
                 if wi % 1000 == 0:
-                    print wi, 'of', len(WISE)
+                    print(wi, 'of', len(WISE))
 
                 if wi and wi % 10000 == 0:
                     fn = ps.getnext()
                     plot.write(fn)
-                    print 'Wrote', fn
+                    print('Wrote', fn)
 
                     wp = np.array(wcsparams)
                     WW = fits_table()
@@ -1427,14 +1477,14 @@ def plot_region(r0,r1,d0,d1, ps, T, WISE, wcsfns, W, H, pixscale, margin=1.05,
 
             fn = ps.getnext()
             plot.write(fn)
-            print 'Wrote', fn
+            print('Wrote', fn)
 
         elif i == 2:
-            print 'plot 2'
+            print('plot 2')
             if wcsfns is None:
-                print 'wcsfns is none'
+                print('wcsfns is none')
                 continue
-            print 'wcsfns:', len(wcsfns), 'tiles', len(tiles)
+            print('wcsfns:', len(wcsfns), 'tiles', len(tiles))
             plot.alpha = 0.5
             for fn in wcsfns:
                 out.set_wcs_file(fn, 0)
@@ -1445,7 +1495,7 @@ def plot_region(r0,r1,d0,d1, ps, T, WISE, wcsfns, W, H, pixscale, margin=1.05,
 
             for it,tile in enumerate(tiles):
                 if it % 1000 == 0:
-                    print 'plotting tile', tile
+                    print('plotting tile', tile)
                 ra,dec = tile_to_radec(tile)
                 wcs = get_coadd_tile_wcs(ra, dec)
                 out.wcs = anwcs_new_tan(wcs)
@@ -1478,7 +1528,7 @@ def plot_region(r0,r1,d0,d1, ps, T, WISE, wcsfns, W, H, pixscale, margin=1.05,
             plot.stroke()
         fn = ps.getnext()
         plot.write(fn)
-        print 'Wrote', fn
+        print('Wrote', fn)
 
 def parse_write_masks(outdir, tag, WISE, Iused, masks, int_gz, ofn, ti, output_masks=True):
     # use the list of second round masks to update the WISE metadata
@@ -1525,7 +1575,7 @@ def _bounce_one_round2(*A):
         return _coadd_one_round2(*A)
     except:
         import traceback
-        print '_coadd_one_round2 failed:'
+        print('_coadd_one_round2 failed:')
         traceback.print_exc()
         raise
 
@@ -1535,6 +1585,8 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     For multiprocessing, the function to be called for each round-2
     frame.
     '''
+    (ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
+                       plotfn, ps1, do_dsky, rchi_fraction) = X
     if rr is None:
         return None
 
@@ -1577,13 +1629,15 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     priorw = nprior * rr.w
     subpp = np.sqrt((subv * subw + priorv * priorw) / (subw + priorw))
     
+    # rr.rmask bit value 1 indicates that the pixel is within the coadd
+    # region.
     mask = (rr.rmask & 1).astype(bool)
 
     # like in the WISE Atlas Images, estimate sky difference via
     # median difference in the overlapping area.
     if do_dsky:
         dsky = median_f((rr.rimg[mask] - subco[mask]).astype(np.float32))
-        print 'Sky difference:', dsky
+        debug('Sky difference:', dsky)
     else:
         dsky = 0.
 
@@ -1603,7 +1657,7 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
     # Bit 1: abs(rchi) >= 5
     badpixmask = badpix.astype(np.uint8)
     # grow by a small margin
-    badpix = binary_dilation(badpix)
+    badpix = binary_dilation(badpixmask)
     # Bit 2: grown
     badpixmask = (badpixmask + (2 * badpix))
     # Add rchi-masked pixels to the mask
@@ -1616,11 +1670,12 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
         mm.omask[Yo,Xo] = badpixmask[Yi,Xi]
     except OverlapError:
         import traceback
-        print 'WARNING: Caught OverlapError resampling rchi mask'
-        print 'rr WCS', rr.wcs
-        print 'shape', mm.omask.shape
-        print 'cosubwcs:', rr.cosubwcs
-        traceback.print_exc(None, sys.stdout)
+        debug('WARNING: Caught OverlapError resampling rchi mask')
+        debug('rr WCS', rr.wcs)
+        debug('shape', mm.omask.shape)
+        debug('cosubwcs:', rr.cosubwcs)
+        if logger.isEnabledFor(logging.DEBUG):
+            traceback.print_exc(None, sys.stdout)
 
     if mm.nrchipix > mm.ncopix * rchi_fraction:
         print ('WARNING: dropping exposure %s: n rchi pixels %i / %i' %
@@ -1639,7 +1694,7 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
         ok = patch_image(rr.rimg, np.logical_not(badpix),
                          required=(badpix * mask))
         if not ok:
-            print 'patch_image failed'
+            print('patch_image failed')
             return None
 
         rimg = (rr.rimg - dsky)
@@ -1648,6 +1703,8 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
         mm.coimg   = mask * rr.w * rimg
         mm.cow     = mask * rr.w
         mm.con     = mask
+        # mm.rmask2 is bit value 2 from rr.rmask: original L1b pixel good
+        # times dilated rchi-based pixel good.
         mm.rmask2  = (rr.rmask & 2).astype(bool)
 
     mm.dsky = dsky / rr.zpscale
@@ -1756,7 +1813,7 @@ def _coadd_one_round2((ri, N, scanid, rr, cow1, cowimg1, cowimgsq1, tinyw,
         plt.suptitle('%s %s' % (scanid, inc))
         plt.savefig(plotfn)
 
-    print Time() - t00
+    debug(Time() - t00)
     return mm
 
 class coaddacc():
@@ -1826,9 +1883,9 @@ class coaddacc():
             self.cubei += 1
         if self.minmax:
 
-            print 'mm.coslc:', mm.coslc
-            print 'mm.con:', np.unique(mm.con), mm.con.dtype
-            print 'mm.rmask2:', np.unique(mm.rmask2), mm.rmask2.dtype
+            debug('mm.coslc:', mm.coslc)
+            debug('mm.con:', np.unique(mm.con), mm.con.dtype)
+            debug('mm.rmask2:', np.unique(mm.rmask2), mm.rmask2.dtype)
 
             self.comin[mm.coslc][mm.con] = np.minimum(self.comin[mm.coslc][mm.con],
                                                       mm.coimg[mm.con] / mm.w)
@@ -1839,10 +1896,10 @@ class coaddacc():
             self.comaxb[mm.coslc][mm.rmask2] = np.maximum(self.comaxb[mm.coslc][mm.rmask2],
                                                           mm.coimg[mm.rmask2] / mm.w)
 
-            print 'comin',  self.comin.min(),  self.comin.max()
-            print 'comax',  self.comax.min(),  self.comax.max()
-            print 'cominb', self.cominb.min(), self.cominb.max()
-            print 'comaxb', self.comaxb.min(), self.comaxb.max()
+            debug('comin',  self.comin.min(),  self.comin.max())
+            debug('comax',  self.comax.min(),  self.comax.max())
+            debug('cominb', self.cominb.min(), self.cominb.max())
+            debug('comaxb', self.comaxb.min(), self.comaxb.max())
 
         if delmm:
             del mm.coimgsq
@@ -1965,8 +2022,8 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                checkmd5=False, bgmatch=False, minmax=False, rchi_fraction=0.01, do_cube1=False, 
                recover=None, do_rebin=True, warp_all=False, reference_dir=None, hi_lo_rej=False):
     L = 3
-    W = cowcs.get_width()
-    H = cowcs.get_height()
+    W = int(cowcs.get_width())
+    H = int(cowcs.get_height())
     # For W4, single-image ww is ~ 1e-10
     tinyw = 1e-16
 
@@ -1989,25 +2046,25 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                 warp_list.append(_rimg.warp)
 
     if mp1 != mp2:
-        print 'Shutting down multiprocessing pool 1'
+        debug('Shutting down multiprocessing pool 1')
         mp1.close()
 
     if do_cube1:
         ofn = '%s-w%i-cube1.fits' % (tile, band)
         fitsio.write(ofn, cube1, clobber=True)
-        print 'Wrote', ofn
+        debug('Wrote', ofn)
 
         ofn = '%s-w%i-coimg1.fits' % (tile, band)
         fitsio.write(ofn, coimg1, clobber=True)
-        print 'Wrote', ofn
+        debug('Wrote', ofn)
 
         ofn = '%s-w%i-cow1.fits' % (tile, band)
         fitsio.write(ofn, cow1, clobber=True)
-        print 'Wrote', ofn
+        debug('Wrote', ofn)
 
         ofn = '%s-w%i-coppstd1.fits' % (tile, band)
         fitsio.write(ofn, coppstd1, clobber=True)
-        print 'Wrote', ofn
+        debug('Wrote', ofn)
 
     if ps:
         # Plot round-one images
@@ -2027,7 +2084,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
             ngood = len([x for x in rimgs if x is not None])
             cols = int(np.ceil(np.sqrt(float(ngood))))
             rows = int(np.ceil(ngood / float(cols)))
-            print 'ngood', ngood, 'rows,cols', rows,cols
+            print('ngood', ngood, 'rows,cols', rows,cols)
 
             if medfilt:
                 sum_medfilt = np.zeros((H,W))
@@ -2145,7 +2202,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                 fullimg -= rr.sky
                 ploti += 1
                 plt.subplot(rows, cols, ploti)
-                print 'zpscale', rr.zpscale
+                print('zpscale', rr.zpscale)
                 sig1 = np.sqrt(1./rr.w) / rr.zpscale
                 plt.imshow(fullimg, interpolation='nearest', origin='lower',
                            vmin=-2.*sig1, vmax=3.*sig1)
@@ -2181,7 +2238,7 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
             if rr.ncopix < 0.25 * W*H:
                 continue
             ngood += 1
-            print 'Plotting rr', i
+            print('Plotting rr', i)
             plt.clf()
             cim = np.zeros((H,W))
             # Make untouched pixels white.
@@ -2236,9 +2293,9 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
     # memory usage (so we don't need to keep all "rr" inputs and
     # "masks" outputs in memory at once).
     t0 = Time()
-    print 'Before garbage collection:', Time()-t0
+    debug('Before garbage collection:', Time()-t0)
     gc.collect()
-    print 'After garbage collection:', Time()-t0
+    debug('After garbage collection:', Time()-t0)
     ps1 = (ps is not None)
     delmm = (ps is None)
     if not mp2.pool:
@@ -2284,18 +2341,31 @@ def coadd_wise(tile, cowcs, WISE, ps, band, mp1, mp2,
                          plotfn, ps1, do_dsky, rchi_fraction, r1_coadd.con1))
         masks = mp2.map(_bounce_one_round2, args)
         del args
-        print 'Accumulating second-round coadds...'
-        t0 = Time()
-        coadd = coaddacc(H, W, do_cube=do_cube, nims=len(rimgs), bgmatch=bgmatch,
+        info('Accumulating second-round coadds...')
+        coadd = coaddacc(H, W, do_cube=do_cube, nims=Nimgs, bgmatch=bgmatch,
                          minmax=minmax)
-        for mm in masks:
+        t0 = Time()
+        inext = 16
+        i = 0
+        masks = []
+        while True:
+            try:
+                mm = next(maskiter)
+            except StopIteration:
+                break
+            i += 1
+            masks.append(mm)
+            if mm is None:
+                continue
             coadd.acc(mm, delmm=delmm)
-        print Time()-t0
+            if i == inext:
+                inext *= 2
+                info('Accumulated', i, 'of', Nimgs, ':', Time()-t0)
 
     t0 = Time()
-    print 'Before garbage collection:', Time()-t0
+    debug('Before garbage collection:', Time()-t0)
     gc.collect()
-    print 'After garbage collection:', Time()-t0
+    debug('After garbage collection:', Time()-t0)
 
     # this should be only for the case of full-depth warp recovery
     if (recover is not None) and (reference is None):
@@ -2376,7 +2446,7 @@ def subtract_coadd_sky(coimg, coimgb, con):
         coimg  -= sky
         coimgb -= sky
     except np.linalg.LinAlgError:
-        print 'WARNING: Failed to estimate sky in coadd:'
+        print('WARNING: Failed to estimate sky in coadd:')
         import traceback
         traceback.print_exc()
         sky = 0.
@@ -2389,9 +2459,9 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     For multiprocessing, the function called to do round 1 on a single
     input frame.
     '''
+    (i, N, wise, table, L, ps, band, cowcs, medfilt) = X
     t00 = Time()
-    print
-    print 'Coadd round 1, image', (i+1), 'of', N
+    debug('Coadd round 1, image', (i+1), 'of', N)
     intfn = wise.intfn
     uncfn = intfn.replace('-int-', '-unc-')
     if unc_gz and (not int_gz):
@@ -2399,9 +2469,9 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     maskfn = intfn.replace('-int-', '-msk-')
     if mask_gz and (not int_gz):
         maskfn = maskfn + '.gz'
-    print 'intfn', intfn
-    print 'uncfn', uncfn
-    print 'maskfn', maskfn
+    debug('intfn', intfn)
+    debug('uncfn', uncfn)
+    debug('maskfn', maskfn)
 
     wcs = wise.wcs
     x0,x1,y0,y1 = wise.imextent
@@ -2412,10 +2482,6 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     cox0,cox1,coy0,coy1 = wise.coextent
     coW = int(1 + cox1 - cox0)
     coH = int(1 + coy1 - coy0)
-
-    if do_check_md5:
-        if not check_one_md5(wise):
-            raise RuntimeError('MD5 check failed for ' + intfn + ' or unc/msk')
 
     # We read the full images for sky-estimation purposes -- really necessary?
     fullimg,ihdr = fitsio.read(intfn, header=True)
@@ -2460,23 +2526,23 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     goodmask[np.logical_not(np.isfinite(unc))] = False
 
     sig1 = median_f(unc[goodmask])
-    print 'sig1:', sig1
+    debug('sig1:', sig1)
     del mask
     del unc
 
     rr = FirstRoundImage()
     # Patch masked pixels so we can interpolate
     rr.npatched = np.count_nonzero(np.logical_not(goodmask))
-    print 'Pixels to patch:', rr.npatched
+    debug('Pixels to patch:', rr.npatched)
     # Many of the post-cryo frames have ~160,000 masked!
     if rr.npatched > 200000:
-        print 'WARNING: too many pixels to patch:', rr.npatched
+        print('WARNING: too many pixels to patch:', rr.npatched)
         return None
     ok = patch_image(img, goodmask.copy())
     if not ok:
-        print 'WARNING: Patching failed:'
-        print 'Image size:', img.shape
-        print 'Number to patch:', rr.npatched
+        print('WARNING: Patching failed:')
+        print('Image size:', img.shape)
+        print('Number to patch:', rr.npatched)
         return None
     assert(np.all(np.isfinite(img)))
 
@@ -2487,18 +2553,62 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     fullok[np.logical_not(np.isfinite(fullunc))] = False
 
     if medfilt:
+        from astrometry.util.util import median_smooth
+        from scipy.ndimage.filters import uniform_filter
         tmf0 = Time()
         mf = np.zeros_like(fullimg)
         ok = median_smooth(fullimg, np.logical_not(fullok), int(medfilt), mf)
+        # Now mask out significant pixels and repeat the median filter!
+        # This method is courtesy of John Moustakas
+        # Smooth by a boxcar filter before cutting pixels above threshold --
+        boxcar = 5
+        # Sigma of boxcar-smoothed image
+        bsig1 = sig1 / boxcar
+        diff = fullimg - mf
+        diff[np.logical_not(fullok)] = 0.
+        masked = np.abs(uniform_filter(diff, size=boxcar, mode='constant')) > (3.*bsig1)
+        del diff
+        masked = binary_dilation(masked, iterations=3)
+        masked[np.logical_not(fullok)] = True
+        if ps:
+            mf1 = mf.copy()
+        mf[:,:] = 0.
+        h,w = masked.shape
+        frac_masked = np.sum(masked) / (h*w)
+        debug('%.1f %% of pixels masked by boxcar' % (100.*frac_masked))
+        ok = median_smooth(fullimg, masked, int(medfilt), mf)
         fullimg -= mf
         img = fullimg[slc]
-        print 'Median filtering with box size', medfilt, 'took', Time()-tmf0
+        debug('Median filtering with box size', medfilt, 'took', Time()-tmf0)
         if ps:
+            plt.clf()
+            plt.subplot(2,2,1)
+            ima1 = dict(interpolation='nearest', origin='lower',
+                       cmap='gray')
+            ima = dict(interpolation='nearest', origin='lower', vmin=-3*sig1, vmax=+3*sig1,
+                       cmap='gray')
+            plt.imshow(fullimg * fullok, **ima)
+            plt.title('image')
+            plt.subplot(2,2,2)
+            plt.imshow(mf1 - np.median(mf[np.isfinite(mf)]), **ima1)
+            plt.colorbar()
+            plt.title('med.filt 1')
+            plt.subplot(2,2,3)
+            plt.imshow(masked, interpolation='nearest', origin='lower', vmin=0, vmax=1,
+                       cmap='gray')
+            plt.title('mask')
+            plt.subplot(2,2,4)
+            plt.imshow(mf - np.median(mf[np.isfinite(mf)]), **ima1)
+            plt.title('med.filt')
+            plt.colorbar()
+            ps.savefig()
+
             # save for later...
             rr.medfilt = mf * zpscale
         del mf
         
     # add some noise to smooth out "dynacal" artifacts
+    # NOTE -- this is just for the background estimation!
     fim = fullimg[fullok]
     scan_frame_int = int_from_scan_frame(wise.scan_id, wise.frame_num)
     np.random.seed(scan_frame_int)
@@ -2545,9 +2655,9 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
     else:
         sky = estimate_mode(fim)
 
-    print 'Estimated sky:', sky
-    print 'Image median:', np.median(fullimg[fullok])
-    print 'Image median w/ noise:', np.median(fim)
+    debug('Estimated sky:', sky)
+    debug('Image median:', np.median(fullimg[fullok]))
+    debug('Image median w/ noise:', np.median(fim))
 
     del fim
     del fullunc
@@ -2566,19 +2676,21 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
         Yo,Xo,Yi,Xi,rims = resample_with_wcs(cosubwcs, wcs, [img], L,
                                              table=table)
     except OverlapError:
-        print 'No overlap; skipping'
+        debug('No overlap; skipping')
         return None
     rim = rims[0]
     assert(np.all(np.isfinite(rim)))
-    print 'Pixels in range:', len(Yo)
+    debug('Pixels in range:', len(Yo))
 
     # Scalar!
     rr.w = (1./sig1**2)
     rr.rimg = np.zeros((coH, coW), img.dtype)
     rr.rimg[Yo, Xo] = rim
     rr.rmask = np.zeros((coH, coW), np.uint8)
-    # bit 0: old rmask
-    # bit 1: old rmask2
+    '''
+    rr.rmask bit 0 (value 1): This pixel is within the coadd footprint.
+    rr.rmask bit 1 (value 2): This pixel is good.
+    '''
     rr.rmask[Yo, Xo] = 1 + 2*goodmask[Yi, Xi]
     rr.wcs = wcs
     rr.sky = sky
@@ -2600,9 +2712,8 @@ def _coadd_one_round1((i, N, wise, table, L, ps, band, cowcs, medfilt,
         rr.x_coadd = Xo
         rr.y_coadd = Yo
 
-    print Time() - t00
+    debug(Time() - t00)
     return rr
-
 
 def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
                        checkmd5, bgmatch, cube1, reference=None, recover=None, hi_lo_rej=False):
@@ -2683,7 +2794,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
             if len(I) > 0:
                 bg = median_f(((coimg[slc].flat[I] / cow[slc].flat[I]) - 
                                rr.rimg.flat[I]).astype(np.float32))
-                print 'Matched bg:', bg
+                debug('Matched bg:', bg)
                 rr.rimg[(rr.rmask & 1) > 0] += bg
                 rr.bgmatch = bg
                 
@@ -2713,7 +2824,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
         #     plt.title('%s %i' % (WISE.scan_id[wi], WISE.frame_num[wi]))
         #     ps.savefig()
 
-    print Time()-t0
+    debug(Time()-t0)
 
     coimg /= np.maximum(cow, tinyw)
     # Per-pixel std
@@ -2802,6 +2913,7 @@ def _coadd_wise_round1(cowcs, WISE, ps, band, table, L, tinyw, mp, medfilt,
         plt.xlabel('rimg (-sky)')
         #yl,yh = plt.ylim()
         yl,yh = [np.percentile(np.hstack([n for n,e in nn]), p) for p in [3,97]]
+        print('percentiles', yl,yh)
         plt.ylim(yl, yh)
         ps.savefig()
 
@@ -2834,112 +2946,112 @@ def get_wise_frames_for_dataset(dataset, band, racen, deccen,
         # bool -> uint8 to avoid confusing fitsio
         WISE.moon_masked = WISE.moon_masked.astype(np.uint8)
         if randomize:
-            print 'Randomizing frame order...'
+            print('Randomizing frame order...')
             WISE.cut(np.random.permutation(len(WISE)))
 
-        WISE.writeto(fn)
+        if cache:
+            WISE.writeto(fn)
     # convert to boolean
     WISE.moon_masked = (WISE.moon_masked != 0)
     return WISE
-   
 
 def main():
-    import optparse
+    import argparse
     from astrometry.util.multiproc import multiproc
 
-    parser = optparse.OptionParser('%prog [options]')
-    parser.add_option('--threads', dest='threads', type=int, help='Multiproc',
+    parser = argparse.ArgumentParser('%prog [options]')
+
+    parser.add_argument('--threads', dest='threads', type=int, help='Multiproc',
                       default=None)
     parser.add_option('--threads1', dest='threads1', type=int, default=None,
                       help='Multithreading during round 1')           
     parser.add_option('-w', dest='wishlist', action='store_true',
                       default=False, help='Print needed frames and exit?')
-    parser.add_option('--plots', dest='plots', action='store_true',
+    parser.add_argument('--plots', dest='plots', action='store_true',
                       default=False)
-    parser.add_option('--plots2', dest='plots2', action='store_true',
+    parser.add_argument('--plots2', dest='plots2', action='store_true',
                       default=False)
-    parser.add_option('--pdf', dest='pdf', action='store_true', default=False)
+    parser.add_argument('--pdf', dest='pdf', action='store_true', default=False)
 
-    parser.add_option('--plot-prefix', dest='plotprefix', default=None)
+    parser.add_argument('--plot-prefix', dest='plotprefix', default=None)
 
-    parser.add_option('--outdir', '-o', dest='outdir', default='unwise-coadds',
-                      help='Output directory: default %default')
-    parser.add_option('--outdir2', dest='outdir2',
-                      help='Additional output directory')
+    parser.add_argument('--outdir', '-o', dest='outdir', default='unwise-coadds',
+                      help='Output directory: default %(default)s')
 
-    parser.add_option('--size', dest='size', default=2048, type=int,
-                      help='Set output image size in pixels; default %default')
-    parser.add_option('--width', dest='width', default=0, type=int,
+    parser.add_argument('--size', dest='size', default=2048, type=int,
+                      help='Set output image size in pixels; default %(default)s')
+    parser.add_argument('--width', dest='width', default=0, type=int,
                       help='Set output image width in pixels; default --size')
-    parser.add_option('--height', dest='height', default=0, type=int,
+    parser.add_argument('--height', dest='height', default=0, type=int,
                       help='Set output image height in pixels; default --size')
 
-    parser.add_option('--pixscale', dest='pixscale', type=float, default=2.75,
-                      help='Set coadd pixel scale, default %default arcsec/pixel')
-    parser.add_option('--cube', dest='cube', action='store_true',
+    parser.add_argument('--pixscale', dest='pixscale', type=float, default=2.75,
+                      help='Set coadd pixel scale, default %(default)s arcsec/pixel')
+    parser.add_argument('--cube', dest='cube', action='store_true',
                       default=False, help='Save & write out image cube')
-    parser.add_option('--cube1', dest='cube1', action='store_true',
+    parser.add_argument('--cube1', dest='cube1', action='store_true',
                       default=False, help='Save & write out image cube for round 1')
 
-    parser.add_option('--dataset', dest='dataset', default='sequels',
-                      help='Dataset (region of sky) to coadd')
-
-    parser.add_option('--frame0', dest='frame0', default=0, type=int,
+    parser.add_argument('--frame0', dest='frame0', default=0, type=int,
                       help='Only use a subset of the frames: starting with frame0')
-    parser.add_option('--nframes', dest='nframes', default=0, type=int,
+    parser.add_argument('--nframes', dest='nframes', default=0, type=int,
                       help='Only use a subset of the frames: number nframes')
+    parser.add_argument('--nframes-random', dest='nframes_random', default=0, type=int,
+                      help='Only use a RANDOM subset of the frames: number nframes')
 
-    parser.add_option('--medfilt', dest='medfilt', type=int, default=None,
+    parser.add_argument('--medfilt', dest='medfilt', type=int, default=None,
                       help=('Median filter with a box twice this size (+1),'+
                             ' to remove varying background.  Default: none for W1,W2; 50 for W3,W4.'))
 
-    parser.add_option('--force', dest='force', action='store_true',
+    parser.add_argument('--force', dest='force', action='store_true',
                       default=False, 
                       help='Run even if output file already exists?')
 
-    parser.add_option('--maxmem', dest='maxmem', type=float, default=0,
+    parser.add_argument('--maxmem', dest='maxmem', type=float, default=0,
                       help='Quit if predicted memory usage > n GB')
 
-    parser.add_option('--dsky', dest='dsky', action='store_true',
+    parser.add_argument('--dsky', dest='dsky', action='store_true',
                       default=False,
                       help='Do background-matching by matching medians '
                       '(to first-round coadd)')
 
-    parser.add_option('--bgmatch', dest='bgmatch', action='store_true',
+    parser.add_argument('--bgmatch', dest='bgmatch', action='store_true',
                       default=False,
                       help='Do background-matching by matching medians '
                       '(when accumulating first-round coadd)')
 
-    parser.add_option('--center', dest='center', action='store_true',
+    parser.add_argument('--center', dest='center', action='store_true',
                       default=False,
                       help='Read frames in order of distance from center; for debugging.')
 
-    parser.add_option('--minmax', action='store_true',
+    parser.add_argument('--minmax', action='store_true',
                       help='Record the minimum and maximum values encountered during coadd?')
 
-    parser.add_option('--md5', dest='md5', action='store_true', default=False,
-                      help='Check md5sums on all input files?')
-
-    parser.add_option('--all-md5', dest='allmd5', action='store_true', default=False,
-                      help='Check all md5sums and exit')
-
-    parser.add_option('--ra', dest='ra', type=float, default=None,
+    parser.add_argument('--ra', dest='ra', type=float, default=None,
                       help='Build coadd at given RA center')
-    parser.add_option('--dec', dest='dec', type=float, default=None,
+    parser.add_argument('--dec', dest='dec', type=float, default=None,
                       help='Build coadd at given Dec center')
-    parser.add_option('--band', type=int, default=None, action='append',
+    parser.add_argument('--band', type=int, default=None, action='append',
                       help='with --ra,--dec: band(s) to do (1,2,3,4)')
 
-    parser.add_option('--tile', dest='tile', type=str, default=None,
+    parser.add_argument('--zoom', type=int, nargs=4,
+                        help='Set target image extent (default "0 2048 0 2048")')
+    parser.add_argument('--grid', type=int, nargs='?', default=0, const=2048,
+                        help='Grid this (large custom) image into pieces of this size.')
+
+    parser.add_argument('--name', default=None,
+                      help='Output file name: unwise-NAME-w?-*.fits')
+
+    parser.add_argument('--tile', dest='tile', type=str, default=None,
                       help='Run a single tile, eg, 0832p196')
 
-    parser.add_option('--preprocess', dest='preprocess', action='store_true',
+    parser.add_argument('--preprocess', dest='preprocess', action='store_true',
                       default=False, help='Preprocess (write *-atlas, *-frames.fits) only')
 
-    parser.add_option('--rchi-fraction', dest='rchi_fraction', type=float,
+    parser.add_argument('--rchi-fraction', dest='rchi_fraction', type=float,
                       default=0.01, help='Fraction of outlier pixels to reject frame')
 
-    parser.add_option('--epoch', type=int, help='Keep only input frames in the given epoch, zero-indexed')
+    parser.add_argument('--epoch', type=int, help='Keep only input frames in the given epoch, zero-indexed')
 
     # adding this default value of before is appropriate for first year NEOWISER processing
     # to avoid special non-public Hyades data
@@ -3002,13 +3114,11 @@ def main():
     if len(args) == 0 and arr is None and not (opt.allmd5 or radec or opt.tile or opt.preprocess):
         print 'No tile(s) specified'
         parser.print_help()
-        sys.exit(-1)
+        return -1
 
-    print 'unwise_coadd.py starting: args:', sys.argv
-    print 'PBS_ARRAYID:', arr
-
-    print 'opt:', opt
-    print dir(opt)
+    print('unwise_coadd.py starting: args:', sys.argv)
+    #print('opt:', opt)
+    #print(dir(opt))
 
     print 'Running on host: ' + str(os.environ.get('HOSTNAME'))
     print 'Running as user: ' + str(os.environ.get('USER'))
@@ -3022,8 +3132,6 @@ def main():
         W = opt.width
     if opt.height:
         H = opt.height
-
-    dataset = opt.dataset
 
     randomize = False
     pmargin = 1.05
@@ -3040,60 +3148,52 @@ def main():
         r0,r1 = 120.0, 210.0
         d0,d1 =  45.0,  60.0
     else:
-        if radec:
-            dataset = ('custom-%04i%s%03i' % (int(opt.ra*10.),
-                                              'p' if opt.dec >= 0. else 'm',
-                                              int(np.abs(opt.dec)*10.)))
-            print 'Setting custom dataset', dataset
-            cosd = np.cos(np.deg2rad(opt.dec))
-            r0 = opt.ra - (opt.pixscale * W/2.)/3600. / cosd
-            r1 = opt.ra + (opt.pixscale * W/2.)/3600. / cosd
-            d0 = opt.dec - (opt.pixscale * H/2.)/3600.
-            d1 = opt.dec + (opt.pixscale * H/2.)/3600.
+        # parse opt.tile
+        if len(opt.tile) != 8:
+            print('--tile expects string like RRRR[pm]DDD')
+            return -1
+        # Read Atlas Image table to find tile id
+        fn = os.path.join(wisedir, 'wise_allsky_4band_p3as_cdd.fits')
+        print('Reading', fn)
+        tiles = fits_table(fn, columns=['coadd_id', 'ra', 'dec'])
+        print('Read', len(tiles), 'Atlas tiles')
+        tiles.coadd_id = np.array([c.replace('_ab41','') for c in tiles.coadd_id])
+        I = np.flatnonzero(tiles.coadd_id == np.array(opt.tile).astype(tiles.coadd_id.dtype))
+        if len(I) != 1:
+            print('Found', len(I), '(not 1) tiles matching desired', opt.tile)
+            return -1
+        tiles.cut(I)
+        dataset = opt.tile
 
-        elif opt.tile is not None:
-            # parse it
-            if len(opt.tile) != 8:
-                print '--tile expects string like RRRR[pm]DDD'
-                sys.exit(-1)
-            ra,dec = tile_to_radec(opt.tile)
-            print 'Tile RA,Dec', ra,dec
-            dataset = opt.tile
-            r0 = ra  - 0.001
-            r1 = ra  + 0.001
-            d0 = dec - 0.001
-            d1 = dec + 0.001
+    # In the olden days, we ran multiple tiles
+    assert(len(tiles) == 1)
+    tile = tiles[0]
 
-        else:
-            assert(False)
+    cosd = np.cos(np.deg2rad(tile.dec))
+    r0 = tile.ra - (opt.pixscale * W/2.)/3600. / cosd
+    r1 = tile.ra + (opt.pixscale * W/2.)/3600. / cosd
+    d0 = tile.dec - (opt.pixscale * H/2.)/3600.
+    d1 = tile.dec + (opt.pixscale * H/2.)/3600.
 
-    tiles = []
-    
+    if opt.name:
+        tile.coadd_id = opt.name
 
+    # cache the file DATASET-frames.fits ?
+    cache = True
+    cachefn = None
     if radec:
-        T = fits_table()
-        T.coadd_id = np.array([dataset])
-        T.ra = np.array([opt.ra])
-        T.dec = np.array([opt.dec])
-        if len(args) == 0:
-            if len(opt.band):
-                tiles.extend([b * arrayblock for b in opt.band])
-            else:
-                tiles.append(arrayblock)
-    else:
-        fn = '%s-atlas.fits' % dataset
-        print 'Looking for file', fn
-        if os.path.exists(fn):
-            print 'Reading', fn
-            T = fits_table(fn)
+        if opt.cache_frames:
+            cachefn = opt.cache_frames
+            cache = True
         else:
             T = get_atlas_tiles(r0,r1,d0,d1, W,H, opt.pixscale, coadd_id=opt.tile)
             T.writeto(fn)
             print 'Wrote', fn
 
-        if not len(args):
-            tiles.append(arr)
-
+    if opt.band is None:
+        bands = [1,2]
+    else:
+        bands = list(opt.band)
 
     if opt.plotprefix is None:
         opt.plotprefix = dataset
@@ -3116,34 +3216,139 @@ def main():
         sys.exit(0)
 
     if not os.path.exists(opt.outdir) and not opt.wishlist:
-        print 'Creating output directory', opt.outdir
-        try:
-            os.makedirs(opt.outdir)
-        except:
-            # if we just lost the race condition, fine
-            if not os.path.exists(opt.outdir):
-                print 'os.makedirs failed, and', opt.outdir, 'does not exist'
-                raise
+        print('Creating output directory', opt.outdir)
+        trymakedirs(opt.outdir)
 
     if opt.preprocess:
-        print 'Preprocessing done'
+        print('Preprocessing done')
+        return 0
+
+    if opt.plots:
+        from astrometry.util.plotutils import PlotSequence
+        if opt.plotprefix is None:
+            opt.plotprefix = dataset
+        ps = PlotSequence(opt.plotprefix, format='%03i')
+        if opt.pdf:
+            ps.suffixes = ['png','pdf']
+    else:
+        ps = None
+
+    period = opt.period
+    grid = opt.grid
+
+    kwargs = vars(opt)
+    print('kwargs:', kwargs)
+    # rename
+    for fr,to in [('dsky', 'do_dsky'),
+                  ('cube', 'do_cube'),
+                  ('cube1', 'do_cube1'),
+                  ('download', 'allow_download'),
+                  ('ascending', 'ascendingOnly'),
+                  ('descending', 'descendingOnly'),
+                  ]:
+        kwargs.update({ to: kwargs.pop(fr) })
+    for key in ['threads', 'threads1', 'plots', 'pdf', 'plotprefix',
+                'size', 'width', 'height', 'ra', 'dec', 'band', 'name',
+                'tile', 'preprocess', 'cache_frames', 'period', 'grid',
+                'verbose']:
+        kwargs.pop(key)
+
+    if period:
+        # Switch to the mode of building short-cadence coadds.
+        if not opt.before:
+            opt.before = max(WISE.mjd)
+        if not opt.after:
+            opt.after = min(WISE.mjd)
+        epochs = np.arange(opt.after, opt.before, period)
+
+        # if not opt.cache_frames:
+        #     f,fn = tempfile.mkstemp()
+        #     os.close(f)
+        #     opt.cache_frames = fn
+        #     WISE.writeto(fn)
+
+        todo = []
+        keep = []
+        nframes_w1 = []
+        nframes_w2 = []
+
+        kwargs.update(write_masks=False, force_outdir=True)
+
+        epnum = 0
+        for i,epoch in enumerate(epochs):
+            epdir = os.path.join(opt.outdir, 'ep%04i' % epnum)
+            #trymakedirs(epdir)
+            kw = kwargs.copy()
+            kw.update(outdir=epdir)
+
+            I, = np.nonzero((WISE.mjd >= epoch) *
+                            (WISE.mjd < epoch+period))
+            if len(I) == 0:
+                print('No coverage for period', epoch, 'to', epoch+period)
+                continue
+            I = I[np.array([WISE.band[ii] in bands for ii in I])]
+            if len(I) == 0:
+                print('No coverage for period', epoch, 'to', epoch+period)
+                continue
+            keep.append(i)
+            nframes_w1.append(np.sum(WISE.band[I] == 1))
+            nframes_w2.append(np.sum(WISE.band[I] == 2))
+            epnum += 1
+
+            for band in bands:
+                todo.append((epdir, (tile, band, W, H, WISE[I]), kw))
+
+        keep = np.array(keep)
+        epochs = epochs[keep]
+        print('Total of', len(epochs), 'epochs to run')
+
+        rtnvals = mp2.map(bounce_one_epoch, todo)
+
+        rtnvals = np.array(rtnvals)
+
+        # measure coverage of central pixel in each epoch??
+
+        summary = fits_table()
+        summary.epochnum = np.arange(len(rtnvals))
+        summary.start = epochs
+        summary.finish = epochs + period
+        ## always the same??
+        summary.nframes_w1 = np.array(nframes_w1)
+        summary.nframes_w2 = np.array(nframes_w2)
+
+        summary.cut(rtnvals == 0)
+
+        summary.writeto(os.path.join(opt.outdir, 'summary.fits'))
+
         sys.exit(0)
 
-    for a in args:
-        # parse "qsub -t" format: n,n1-n2,n3
-        for term in a.split(','):
-            if '-' in term:
-                aa = term.split('-')
-                if len(aa) != 2:
-                    print 'With arg containing a dash, expect two parts'
-                    print aa
-                    sys.exit(-1)
-                start = int(aa[0])
-                end = int(aa[1])
-                for i in range(start, end+1):
-                    tiles.append(i)
-            else:
-                tiles.append(int(term))
+    if grid:
+        orig_name = tile.coadd_id
+        nw = int(np.ceil(W / float(grid)))
+        nh = int(np.ceil(H / float(grid)))
+        cowcs = get_coadd_tile_wcs(tile.ra, tile.dec, W, H, opt.pixscale)
+        for band in bands:
+            for y in range(nh):
+                for x in range(nw):
+                    t0 = Time()
+                    tile.coadd_id = orig_name + '_grid_%i_%i' % (x, y)
+                    print('Doing coadd grid tile', tile.coadd_id, 'band', band, 'x,y', x,y)
+                    kwcopy = kwargs.copy()
+                    kwcopy['zoom'] = (x*grid, min((x+1)*grid, W),
+                                      y*grid, min((y+1)*grid, H))
+                    kwcopy.update(ps=ps, mp1=mp1, mp2=mp2)
+                    if one_coadd(tile, band, W, H, WISE, **kwcopy):
+                        return -1
+                    print('Grid tile', tile.coadd_id, 'band', band, 'x,y', x,y, ':', Time()-t0)
+            frames = []
+            for suffix in ['-img-m.fits', '-invvar-m.fits', '-std-m.fits', '-n-m.fits',
+                           '-img-u.fits', '-invvar-u.fits', '-std-u.fits', '-n-u.fits',
+                           '-frames.fits']:
+                dtype = np.float32
+                if '-n-' in suffix:
+                    dtype = np.int32
+                elif 'frames' in suffix:
+                    dtype = None
 
     for tileid in tiles:
         band   = (opt.band)[0]
@@ -3168,8 +3373,14 @@ def main():
                      warp_all=opt.warp_all, reference_dir=opt.reference_dir, hi_lo_rej=opt.hi_lo_rej,
                      output_masks=opt.output_masks):
             return -1
-        print 'Tile', T.coadd_id[tileid], 'band', band, 'took:', Time()-t0
+        print('Tile', tile.coadd_id, 'band', band, 'took:', Time()-t0)
     return 0
+
+def bounce_one_epoch(X):
+    dirnm, args, kwargs = X
+    rtn = one_coadd(*args, **kwargs)
+    print('Finished', dirnm, 'with return value', rtn)
+    return rtn
 
 if __name__ == '__main__':
     sys.exit(main())

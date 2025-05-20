@@ -51,12 +51,20 @@ def image_way():
 
     #ps = PlotSequence('cov', format='%04i')
     ps = PlotSequence('cov2', format='%04i')
-    for nbands in [4,3,2]:
-        #bb = [1,2,3,4][:nbands]
+
+    metadatadir = '/project/projectdirs/cosmo/data/wise/merge/merge_p1bm_frm/'
+    for phase,metafn in enumerate([
+            'WISE-l1b-metadata-4band.fits',
+            'WISE-l1b-metadata-3band.fits',
+            'WISE-l1b-metadata-2band.fits',
+            'WISE-l1b-metadata-neowiser.fits',
+            'WISE-l1b-metadata-neowiser2.fits',
+            ]):
+        fn = os.path.join(metadatadir, metafn)
         bb = [1]
         for band in bb:
 
-            ofn = 'cov-n%i-b%i.fits' % (nbands, band)
+            ofn = 'cov-phase%i-b%i.fits' % (phase, band)
             if os.path.exists(ofn):
                 print 'Exists:', ofn
                 count = fitsio.read(ofn)
@@ -70,7 +78,6 @@ def image_way():
                 ps.savefig()
                 continue
 
-            fn = 'wise-frames/WISE-l1b-metadata-%iband.fits' % nbands
             cols = [('w%i'%band)+c for c in
                     ['crval1','crval2','crpix1','crpix2',
                      'cd1_1','cd1_2','cd2_1','cd2_2', 'naxis1','naxis2',]]
@@ -229,12 +236,60 @@ def healpix_way():
     
 if __name__ == '__main__':
 
+    image_way()
+    sys.exit(0)
+
+
     T = None
+
+    Nside = 200
+    NHP = 12 * Nside**2
+
+    # Copy the healpix maps into a Hammer-Aitoff map
+    W,H = 2000,1000
+    wcs = anwcs_create_allsky_hammer_aitoff2(180., 0., W, H)        
+    xx,yy = np.meshgrid(np.arange(W), np.arange(H))
+    ok,ra,dec = wcs.pixelxy2radec(xx+1, yy+1)
+    print('Ok:', np.unique(ok))
+    ra  =  ra[ok]
+    dec = dec[ok]
+        
+    hpra,hpdec = [np.zeros(NHP) for i in range(2)]
+    for hp in range(NHP):
+        hpra[hp],hpdec[hp] = healpix_to_radecdeg(hp, Nside, 0.5, 0.5)
+    I,J,d = match_radec(ra, dec, hpra, hpdec, 1., nearest=True)
+
+    hstr = wcs.getHeaderString()
+    #print('Header:', 
+    hdr = fitsio.FITSHDR()
+    while len(hstr):
+        card = hstr[:80]
+        print('Card:', card)
+        hdr.add_record(card, convert=True)
+        hstr = hstr[80:]
+    
     for band in [1,2,3,4]:
         counts = fitsio.read('coverage-hp-w%i.fits' % band)
-        Nside = 200
-        NHP = 12 * Nside**2
         assert(NHP == len(counts))
+
+        print('Percentile:', np.percentile(counts, [0, 1, 50, 99, 100]))
+        
+        
+        img = np.zeros((H,W), np.int16)
+        print('Max counts:', counts.max())
+        img[np.round(yy[ok][I]).astype(int),
+            np.round(xx[ok][I]).astype(int)] = counts[J]
+        plt.clf()
+        plt.imshow(img, interpolation='nearest', origin='lower',
+                   vmin=0, vmax=30)
+        plt.colorbar()
+        plt.savefig('cov-%i.png' % band)
+
+        fitsio.write('cov-%i.fits' % band, img, header=hdr, clobber=True)
+        
+        
+
+
         if T is None:
             T = fits_table()
             ra,dec = [np.zeros(NHP) for i in range(2)]
