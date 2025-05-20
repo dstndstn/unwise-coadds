@@ -82,7 +82,7 @@ def retrieve_git_version():
     if rtn:
         raise RuntimeError('Failed to get version string (git describe):' + ver + err)
     version = version.strip()
-    print '"git describe" version info:', version
+    print('"git describe" version info:', version)
     return version
 
 def get_dir_for_coadd(outdir, coadd_id):
@@ -119,7 +119,7 @@ def get_epoch_breaks(mjds, subdivide=False):
             mjd_max = ends[i]
             dt = mjd_max-mjd_min
             if int(round(dt/10.0)) > 1:
-                print 'excessively long epoch : ', dt, ' days'
+                print('excessively long epoch : ', dt, ' days')
             # create new epoch breaks that subdivide the 
                 n_new_breaks = int(round(dt/10.0)) - 1
                 new_dt = dt/(n_new_breaks + 1)
@@ -128,8 +128,8 @@ def get_epoch_breaks(mjds, subdivide=False):
         for k in range(len(new_breaks_all)):
             bisect.insort_left(ebreaks, new_breaks_all[k])
 
-    print 'Defined epoch breaks', ebreaks
-    print 'Found', len(ebreaks), 'epoch breaks'
+    print('Defined epoch breaks', ebreaks)
+    print('Found', len(ebreaks), 'epoch breaks')
     return ebreaks
 
 def get_coadd_tile_wcs(ra, dec, W=2048, H=2048, pixscale=2.75):
@@ -157,12 +157,12 @@ def download_frameset_1band(scan_id, frame_num, band):
     cmd = (('(wget -r -N -nH -np -nv --cut-dirs=4 -A "*w%i*" ' +
             '"http://irsa.ipac.caltech.edu/ibe/data/wise/merge/merge_p1bm_frm/%s/")') %
            (band, os.path.dirname(intfnx)))
-    print
-    print 'Trying to download file:'
-    print cmd
-    print
+    print()
+    print('Trying to download file:')
+    print(cmd)
+    print()
     os.system(cmd)
-    print
+    print()
 
 def planet_name2bit(_name):
     name = _name.lower()
@@ -177,17 +177,17 @@ def is_fulldepth(parser):
 
     fulldepth = True
 
-    opt, args = parser.parse_args()
+    opt = parser.parse_args()
 
     if opt.epoch is not None:
         fulldepth = False
-    if opt.before != parser.defaults['before']:
+    if opt.before != parser.get_default('before'):
         fulldepth = False
-    if opt.after != parser.defaults['after']:
+    if opt.after != parser.get_default('after'):
         fulldepth = False
-    if opt.frame0 != parser.defaults['frame0']:
+    if opt.frame0 != parser.get_default('frame0'):
         fulldepth = False
-    if opt.nframes != parser.defaults['nframes']:
+    if opt.nframes != parser.get_default('nframes'):
         fulldepth = False
 
     return fulldepth
@@ -198,12 +198,12 @@ def sanity_check_inputs(parser):
     # taken together -- this routine will halt execution if non-sane inputs
     # provided
 
-    opt, args = parser.parse_args()
+    opt = parser.parse_args()
 
     if opt.warp_all or (opt.reference_dir is not None):
         assert((opt.reference_dir is not None) and opt.warp_all and (opt.epoch is not None))
         assert((opt.ra is None) and (opt.dec is None))
-        assert((parser.defaults['after'] == opt.after) and (parser.defaults['before'] == opt.before))
+        assert((parser.get_default('after') == opt.after) and (parser.get_default('before') == opt.before))
         assert(opt.tile is not None)
 
         # TODO : still need to check whether specified reference_dir has necessary files
@@ -225,9 +225,9 @@ def readfits_dodge_throttle(fname, nfail_max=20, tmax=0.15, header=False):
             with time_limit(tmax):
                 out = fitsio.read(fname, header=header)
                 success = 1
-        except TimeoutException, msg:
+        except (TimeoutException, msg):
             nfail += 1
-            print "file read timed out!"
+            print("file read timed out!")
 
     return out
 
@@ -343,11 +343,11 @@ def get_l1b_dirs(yml=False, verbose=False):
                   'missing' : 'merge_p1bm_frm' }
     else:
         fname = os.path.join(os.environ.get('UNWISE_META_DIR'), 'l1b_dirs.yml')
-        print 'Reading L1b top-level directory locations from ' + fname
+        print('Reading L1b top-level directory locations from ' + fname)
         wdirs = yaml.safe_load(open(fname))
 
     if verbose:
-        print 'L1b top-level directories are: '
+        print('L1b top-level directories are:')
         pprint.PrettyPrinter().pprint(wdirs)
 
     return wdirs
@@ -359,8 +359,7 @@ def is_nearby(ra, dec, racen, deccen, margin, fast=True):
     else:
         # do a binary search
         ind = np.searchsorted(dec, [deccen-margin, deccen+margin])
-        ind0 = (ind[0])[0]
-        ind1 = (ind[1])[0]
+        ind0,ind1 = ind
         dangle = degrees_between(ra[ind0:ind1], dec[ind0:ind1], racen, deccen)
         nearby = np.zeros(len(ra),dtype=bool)
         nearby[ind0:ind1] = (dangle <= margin)

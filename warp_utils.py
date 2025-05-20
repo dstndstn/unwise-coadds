@@ -46,7 +46,7 @@ class ReferenceImage():
         if (nbad != 0):
             ok = patch_image(sigma, ((sigma != 0) | (n == 0)))
             assert(ok)
-            print 'Patched ' + str(nbad) + ' bad reference uncertainty pixels'
+            print('Patched ' + str(nbad) + ' bad reference uncertainty pixels')
             return sigma
         else:
             return sigma
@@ -152,7 +152,8 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
 
         t0 = time.time()
         coeff = np.linalg.lstsq(X, diff)[0]
-        if verbose: print (time.time()-t0)
+        if verbose:
+            print(time.time()-t0)
 
         pred = np.dot(X, coeff)
         resid = (diff - pred)
@@ -173,7 +174,8 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
 
     assert(order == par.coeff2order(coeff))
 
-    if verbose: print coeff, len(coeff) , ' !!!!!!!!!!!'
+    if verbose:
+        print(coeff, len(coeff) , ' !!!!!!!!!!!')
 
     # calculate the mean chi-squared
     # i think the mean chi-squared should be calculated including *all* pixels
@@ -184,7 +186,8 @@ def compute_warp(pix_l1b_quad, pix_ref, x_l1b_quad, y_l1b_quad, unc_ref,
     # should chi2_mean_raw be calculated after requiring that
     # reference quadrant and l1b quadrant be made to have matching medians?
     chi2_mean_raw = np.mean(((pix_l1b_quad - pix_ref)/(unc_ref))**2)
-    if verbose: print chi2_mean_raw,  '~~~~~~~', chi2_mean, '~~~~~~~'
+    if verbose:
+        print(chi2_mean_raw,  '~~~~~~~', chi2_mean, '~~~~~~~')
 
     return (coeff, xmed, ymed, x_l1b_quad, y_l1b_quad, 
             isgood, chi2_mean, chi2_mean_raw, pred)
@@ -230,7 +233,7 @@ def apply_warp(rimg_quad, band, save_raw=False, only_good_chi2=False):
     # subtract the warp image from rimg_quad.rimg
     rimg_quad.rimg = (rimg_quad.rimg - warp_image)
     rimg_quad.warped = True
-    print 'Subtracted polynomial warp from quadrant'
+    print('Subtracted polynomial warp from quadrant')
 
     assert(np.sum(rimg_quad.rimg != rimg_bak) != 0)
 
@@ -398,7 +401,7 @@ def parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti, outpu
     if qmasks is None:
         return
 
-    print 'Updating metadata based on quadrant SecondRoundImage objects.'
+    print('Updating metadata based on quadrant SecondRoundImage objects.')
 
     # appropriately update the WISE metadata table
     for qmask in qmasks:
@@ -461,7 +464,7 @@ def merge_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti):
         assert(not os.path.exists(ofn))
 
         fitsio.write(ofn, fullmask)
-        print 'Wrote quadrant-based mask', (i+1), 'of', len(expid_u), ':', ofn
+        print('Wrote quadrant-based mask', (i+1), 'of', len(expid_u), ':', ofn)
 
 def lookup_meta_quadrant(scan_id, frame_num, quad_num, WISE):
     # meant to be helper for merge_write_quadrant_masks function above
@@ -504,9 +507,9 @@ class RecoveryStats():
         return arr_out
 
     def _print(self):
-        print 'number of warps attempted: ' + str(self.n_attempted)
-        print 'number of warps succeeded: ' + str(self.n_succeeded)
-        print 'number of warps skipped: ' + str(self.n_skipped)
+        print('number of warps attempted: ' + str(self.n_attempted))
+        print('number of warps succeeded: ' + str(self.n_succeeded))
+        print('number of warps skipped: ' + str(self.n_skipped))
 
 def pad_rebin_weighted(images, mask, binfac=2):
     # pad a set of images so that each can be rebinned by integer binfac 
@@ -565,10 +568,10 @@ def reference_image_from_dir(basedir, coadd_id, band, verbose=True):
     nfn = intfn.replace('-img-u.fits', '-n-u.fits') + '.gz'
 
     if verbose:
-        print 'Creating reference image from files: '
-        print intfn
-        print uncfn
-        print nfn
+        print('Creating reference image from files:')
+        print(intfn)
+        print(uncfn)
+        print(nfn)
 
     image = fitsio.read(intfn)
     std = fitsio.read(uncfn)

@@ -1,5 +1,5 @@
 from scipy.interpolate import interp1d
-import pyfits
+import fitsio
 import os
 import numpy as np
 import scipy.special as ss
@@ -14,12 +14,12 @@ def create_zp_interpolator(band, phase):
     fdir = os.environ['UNWISE_META_DIR']
     fname = os.path.join(fdir, 'zp_lookup_w' + str(band) + '.fits')
 
-    hdus = pyfits.open(fname)
+    hdus = fitsio.FITS(fname)
 
     par = ZPMetaParameters(phase)
-    print 'Reading zero point lookup table for phase : ' + phase + ', W' + str(band)
+    print('Reading zero point lookup table for phase : ' + phase + ', W' + str(band))
 
-    tab = hdus[par.exten].data
+    tab = hdus[par.exten].read(lower=True)
     ntab = len(tab)
     mjds = tab['mjd']
     zps = tab['zp']
@@ -205,16 +205,12 @@ def read_zp_poly(band, phase):
     # read in the appropriate table of piecewise polynomials
     fdir = os.environ['UNWISE_META_DIR']
     fname = os.path.join(fdir, 'zp_poly_coeff_w' + str(band) + '.fits')
-
-    print 'Reading zero point polynomial coefficients for phase : ' + phase + ', W' + str(band)
-
-    hdus = pyfits.open(fname)
-    print fname + '@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
+    print('Reading zero point polynomial coefficients for phase : ' + phase + ', W' + str(band))
+    hdus = fitsio.FITS(fname)
+    print(fname)
     par = ZPMetaParameters(phase)
-    tab = hdus[par.exten].data
-
+    tab = hdus[par.exten].read(lower=True)
     return tab
-        
 
 class PiecewisePolynomialInterpolator:
     """Custom interpolator using tapered piecewise polynomials"""
@@ -230,7 +226,6 @@ class PiecewisePolynomialInterpolator:
         # polynomial value and corresponding weight
         weight_tot = 0.
         poly_tot = 0.
-
         for i in range(self.npoly):
             taper_weight = TaperWeight(self.poly_data['cutoff_low'][i], 
                                        self.poly_data['cutoff_hi'][i], 
