@@ -1655,7 +1655,7 @@ def _coadd_one_round2(X):
     badpixmask = (badpixmask + (2 * badpix))
     # Add rchi-masked pixels to the mask
     # (clear bit 2)
-    rr.rmask[badpix] = (rr.rmask[badpix] & (~2))
+    rr.rmask[badpix] = (rr.rmask[badpix] & ~np.uint8(2))
     mm.omask = np.zeros((int(rr.wcs.get_height()), int(rr.wcs.get_width())),
                         badpixmask.dtype)
     try:
