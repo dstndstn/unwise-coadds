@@ -1065,6 +1065,11 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     WISE.intfn  = np.zeros(len(WISE), object)
     WISE.wcs    = np.zeros(len(WISE), object)
 
+    WISE.cd1_1 = np.zeros(len(WISE), np.float32)
+    WISE.cd1_2 = np.zeros(len(WISE), np.float32)
+    WISE.cd2_1 = np.zeros(len(WISE), np.float32)
+    WISE.cd2_2 = np.zeros(len(WISE), np.float32)
+
     # count total number of coadd-space pixels -- this determines memory use
     pixinrange = 0.
 
@@ -1106,6 +1111,11 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
                         # delete unzipped temp file
                         cmd_delete_tmp = 'rm ' +  tmpname
                         os.system(cmd_delete_tmp)
+                    cd11,cd12,cd21,cd22 = wcs.cd
+                    WISE.cd1_1[wi] = cd11
+                    WISE.cd1_2[wi] = cd12
+                    WISE.cd2_1[wi] = cd21
+                    WISE.cd2_2[wi] = cd22
                 except RuntimeError:
                     import traceback
                     traceback.print_exc()
