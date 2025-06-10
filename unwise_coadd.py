@@ -779,7 +779,7 @@ def get_extents(wcs, cowcs, copoly, W, H, WISE, wi, ps):
     if not intersects:
         print('Image does not intersect target')
         WISE.use[wi] = False
-        return WISE, False
+        return False
 
     cpoly = np.array(clip_polygon(copoly, poly))
     if len(cpoly) == 0:
@@ -788,7 +788,7 @@ def get_extents(wcs, cowcs, copoly, W, H, WISE, wi, ps):
         print('poly:', poly)
         print('cpoly:', cpoly)
         WISE.use[wi] = False
-        return WISE, False
+        return False
 
     # Convert the intersected polygon in IWC space into image
     # pixel bounds.
@@ -820,25 +820,24 @@ def get_extents(wcs, cowcs, copoly, W, H, WISE, wi, ps):
 
     WISE.imagew[wi] = w
     WISE.imageh[wi] = h
-    WISE.wcs[wi] = wcs # not clear that this belongs in this subroutine
     print('Image extent:', WISE.imextent[wi,:])
     print('Coadd extent:', WISE.coextent[wi,:])
 
     ### now deal with the quadrants
-    WISE.coextent_q1[wi,:], WISE.imextent_q1[wi,:] = get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, 
-                                                                          wi, ps, 1, WISE.coextent[wi,:],
-                                                                          WISE.imextent[wi,:], margin=10)
-    WISE.coextent_q2[wi,:], WISE.imextent_q2[wi,:] = get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, 
-                                                                          wi, ps, 2, WISE.coextent[wi,:],
-                                                                          WISE.imextent[wi,:], margin=10)
-    WISE.coextent_q3[wi,:], WISE.imextent_q3[wi,:] = get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, 
-                                                                          wi, ps, 3, WISE.coextent[wi,:],
-                                                                          WISE.imextent[wi,:], margin=10)
-    WISE.coextent_q4[wi,:], WISE.imextent_q4[wi,:] = get_extents_quadrant(wcs, cowcs, copoly, W, H, WISE, 
-                                                                          wi, ps, 4, WISE.coextent[wi,:],
-                                                                          WISE.imextent[wi,:], margin=10)
-    ###
-    return WISE, True
+    WISE.coextent_q1[wi,:], WISE.imextent_q1[wi,:] = get_extents_quadrant(
+        wcs, cowcs, copoly, W, H, WISE, wi, ps, 1, WISE.coextent[wi,:],
+        WISE.imextent[wi,:], margin=10)
+    WISE.coextent_q2[wi,:], WISE.imextent_q2[wi,:] = get_extents_quadrant(
+        wcs, cowcs, copoly, W, H, WISE, wi, ps, 2, WISE.coextent[wi,:],
+        WISE.imextent[wi,:], margin=10)
+    WISE.coextent_q3[wi,:], WISE.imextent_q3[wi,:] = get_extents_quadrant(
+        wcs, cowcs, copoly, W, H, WISE, wi, ps, 3, WISE.coextent[wi,:],
+        WISE.imextent[wi,:], margin=10)
+    WISE.coextent_q4[wi,:], WISE.imextent_q4[wi,:] = get_extents_quadrant(
+        wcs, cowcs, copoly, W, H, WISE, wi, ps, 4, WISE.coextent[wi,:],
+        WISE.imextent[wi,:], margin=10)
+
+    return True
 
 
 def one_coadd(ti, band, W, H, pixscale, WISE,
@@ -1073,77 +1072,118 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
     # count total number of coadd-space pixels -- this determines memory use
     pixinrange = 0.
 
+    # directories to search for "L1b" WISE data products
     wdirs = get_l1b_dirs(yml=True, verbose=True)
     nu = 0
     NU = sum(WISE.use)
     failedfiles = []
+    # Try to find and read the WCS headers of each WISE frame
     for wi,wise in enumerate(WISE):
         if not wise.use:
             continue
         nu += 1
         debug(nu, 'of', NU, 'scan', wise.scan_id, 'frame', wise.frame_num, 'band', band)
 
+        # Search for the data products for this frame.
         found = False
+        # Get "phase", like "neo7" or "2band", part of the directory structure of the WISE
+        # L1b data products
         _phase = phase_from_scanid(wise.scan_id)
+        # Search the directory for that phase, plus a "missing" directory, and then optionally
+        # download any files that are still missing.
         for wdir in [wdirs[_phase], wdirs['missing']] + [None]:
+
+            # (we only hit this case if we didn't find the image in its expected place or the
+            # "missing" directory)
             download = False
             if wdir is None:
-                download = allow_download
+                download = try_download
                 wdir = 'merge_p1bm_frm'
 
+            # the intensity image filename
             intfn = get_l1b_file(wdir, wise.scan_id, wise.frame_num, band, int_gz=int_gz)
 
-            if download and try_download:
+            if download:
                 download_frameset_1band(wise.scan_id, wise.frame_num, band)
-            if os.path.exists(intfn):
-                print('intfn', intfn)
-                try:
-                    if not int_gz:
-                        wcs = Sip(intfn)
-                    else:
-                        tmpname = (intfn.split('/'))[-1]
-                        tmpname = tmpname.replace('.gz', '')
-                        # add random stuff to tmpname to avoid collisions b/w simultaneous jobs
-                        tmpname = str(random.randint(0, 1000000)).zfill(7) + '-' + tmpname
-                        cmd_unzip_tmp = 'gunzip -c '+ intfn + ' > ' + tmpname
-                        os.system(cmd_unzip_tmp)
-                        wcs = Sip(tmpname)
-                        # delete unzipped temp file
-                        cmd_delete_tmp = 'rm ' +  tmpname
-                        os.system(cmd_delete_tmp)
-                    cd11,cd12,cd21,cd22 = wcs.cd
-                    WISE.cd1_1[wi] = cd11
-                    WISE.cd1_2[wi] = cd12
-                    WISE.cd2_1[wi] = cd21
-                    WISE.cd2_2[wi] = cd22
-                except RuntimeError:
-                    import traceback
-                    traceback.print_exc()
-                    continue
-            else:
+
+            if not os.path.exists(intfn):
                 debug('does not exist:', intfn)
                 continue
-            if (os.path.exists(intfn.replace('-int-', '-unc-') + ('.gz' if not int_gz else '')) and
-                os.path.exists(intfn.replace('-int-', '-msk-') + ('.gz' if not int_gz else ''))):
-                found = True
-                break
-            else:
-                print('missing unc or msk file')
+
+            # Also make sure the uncertainty and mask images exist.
+            unc_fn = intfn.replace('-int-', '-unc-') + ('.gz' if not int_gz else '')
+            msk_fn = intfn.replace('-int-', '-msk-') + ('.gz' if not int_gz else '')
+            if not(os.path.exists(unc_fn) and os.path.exists(msk_fn)):
+                print('missing uncertainty or mask files:', unc_fn, msk_fn)
                 continue
+
+            print('intfn', intfn)
+            # Intensity image exists, try reading it
+            try:
+                # Intensity images may be gzipped - the "Sip" code (WCS header reader)
+                # can't handle gzipped inputs, so if they're gzipped, we run "gunzip"
+                # to unzip them to a temp file before reading the WCS header.
+                if not int_gz:
+                    wcs = Sip(intfn)
+                else:
+                    # FIXME - should use tempfile.NamedTemporaryFile or something similar
+                    tmpname = (intfn.split('/'))[-1]
+                    tmpname = tmpname.replace('.gz', '')
+                    # add random stuff to tmpname to avoid collisions b/w simultaneous jobs
+                    tmpname = str(random.randint(0, 1000000)).zfill(7) + '-' + tmpname
+                    cmd_unzip_tmp = 'gunzip -c '+ intfn + ' > ' + tmpname
+                    os.system(cmd_unzip_tmp)
+                    wcs = Sip(tmpname)
+                    # delete unzipped temp file
+                    cmd_delete_tmp = 'rm ' +  tmpname
+                    os.system(cmd_delete_tmp)
+            except RuntimeError:
+                # Some sort of I/O error reading the file
+                print('Error reading WCS header from intensity file', intfn)
+                import traceback
+                traceback.print_exc()
+                raise
+
+            # If we get here, we have successfully found the intensity file and read its
+            # WCS header!  Set the "found" flag and stop searching more directories
+            found = True
+            break
+
         if not found:
             WISE.use[wi] = False
-            print('WARNING: Not found: scan', wise.scan_id, 'frame', wise.frame_num, 'band', band)
+            print('WARNING: Not found: scan', wise.scan_id, 'frame', wise.frame_num,
+                  'band', band)
             continue
 
-        WISE, has_overlap = get_extents(wcs, cowcs, copoly, W, H, WISE, wi, ps)
-        # Count total coadd-space bounding-box size -- this x 5 bytes
+        # Save the intensity filename
+        WISE.intfn[wi] = intfn
+
+        # Save the WCS header, also pull out the CD matrix for later use
+        WISE.wcs[wi] = wcs # not clear that this belongs in this subroutine
+        cd11,cd12,cd21,cd22 = wcs.cd
+        WISE.cd1_1[wi] = cd11
+        WISE.cd1_2[wi] = cd12
+        WISE.cd2_1[wi] = cd21
+        WISE.cd2_2[wi] = cd22
+
+        # Compute whether this image overlaps the desired coadd image, using the image
+        # and coadd WCS headers.  This fills in the following fields in the WISE table:
+        # - WISE.use (set to False if no overlap)
+        # - WISE.coextent -- (x_lo, x_hi, y_lo, y_hi) - overlap region in the coadd
+        # - WISE.imextent -- (x_lo, x_hi, y_lo, y_hi) - overlap region in the image frame
+        # - WISE.imagew, WISE.imageh -- pixel size of the full image frame.
+        # - WISE.coextent_q[1234] - coadd overlap region for the four quadrants
+        # - WISE.imextent_q[1234] - image overlap region for the four quadrants
+        has_overlap = get_extents(wcs, cowcs, copoly, W, H, WISE, wi, ps)
+        if not has_overlap:
+            continue
+
+        # Count total coadd-space bounding-box size -- this number times 5 bytes
         # is the memory toll of our round-1 coadds, which is basically
         # the peak memory use.
-        if has_overlap:
-            WISE.intfn[wi] = intfn
-            e = WISE.coextent[wi,:]
-            pixinrange += (1+e[1]-e[0]) * (1+e[3]-e[2])
-            print('Total pixels in coadd space:', pixinrange)
+        e = WISE.coextent[wi,:]
+        pixinrange += (1+e[1]-e[0]) * (1+e[3]-e[2])
+        print('Total pixels in coadd space:', pixinrange)
 
     # Now we can make a more informed estimate of memory use.
     if maxmem:
