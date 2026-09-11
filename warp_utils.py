@@ -406,7 +406,7 @@ def parse_write_quadrant_masks(outdir, tag, WISE, qmasks, int_gz, ofn, ti, outpu
     # appropriately update the WISE metadata table
     for qmask in qmasks:
         # find relevant row in metadata table
-        exp_mask = [(WISE.scan_id == qmask.scan_id) & (WISE.frame_num == qmask.frame_num)]
+        exp_mask = (WISE.scan_id == qmask.scan_id) & (WISE.frame_num == qmask.frame_num)
         assert(np.sum(exp_mask) == 1)
 
         WISE.sky1[exp_mask] = qmask.sky

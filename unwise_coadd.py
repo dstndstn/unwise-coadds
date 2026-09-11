@@ -1399,7 +1399,7 @@ def one_coadd(ti, band, W, H, pixscale, WISE,
         rstats = RecoveryStats(None, None, None) # dummy
         rstats = rstats.to_recarray()
     fitsio.write(ofn, rstats)
-
+    rtn = 0
     if output_masks:
         md = tag + '-mask'
         cmd = ('cd %s && tar czf %s %s && rm -R %s' %
@@ -2012,7 +2012,7 @@ def do_one_warp(rimg, wise, reference, debug=False, do_rebin=False):
     else:
         images_out, mask_reb = pad_rebin_weighted([rimg.rimg, imref, x_l1b_im, y_l1b_im, sigref], 
                                                   non_extreme_mask.astype('byte'), binfac=binfac)
-        goodmask = [mask_reb > 0.5]
+        goodmask = mask_reb > 0.5
         pix_l1b_quad = (images_out[0])[goodmask]
         pix_ref = (images_out[1])[goodmask]
         x_fit = (images_out[2])[goodmask]
@@ -2496,14 +2496,13 @@ def subtract_coadd_sky(coimg, coimgb, con):
 
     return coimg, coimgb, sky
 
-def _coadd_one_round1(X):
+def _coadd_one_round1(X, store_xy_coords=False):
     '''
     For multiprocessing, the function called to do round 1 on a single
     input frame.
     '''
     (i, N, wise, table, L, ps, band, cowcs, medfilt,
      do_check_md5, zp_lookup_obj) = X
-    store_xy_coords=False
     t00 = Time()
     debug('Coadd round 1, image', (i+1), 'of', N)
     intfn = wise.intfn
