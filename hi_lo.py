@@ -7,8 +7,8 @@ class HiLo():
         self.sidelen = 2048 # square ; this is in coadd pixel space
         self.im_min = np.zeros((self.sidelen, self.sidelen), dtype=float) + 1.0e30
         self.im_max = np.zeros((self.sidelen, self.sidelen), dtype=float) - 1.0e30
-        self.id_min = np.zeros((self.sidelen, self.sidelen), dtype='S9')
-        self.id_max = np.zeros((self.sidelen, self.sidelen), dtype='S9')
+        self.id_min = np.zeros((self.sidelen, self.sidelen), dtype='U9')
+        self.id_max = np.zeros((self.sidelen, self.sidelen), dtype='U9')
 
     def update(self, rimg):
 
